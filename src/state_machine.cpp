@@ -1,7 +1,7 @@
 /**
  * @file state_machine.cpp
  * @brief Production Implementation of State Machine and Sensor Filtering
- * @project ESP32 Metodis Production Firmware - Phase 1
+ * @project ESP32 Production Firmware - Phase 1
  */
 
 #include "state_machine.h"

@@ -1,4 +1,4 @@
-# ESP32 Metodis Embedded Firmware & Digital Twin Simulator (Phase 1)
+# ESP32 Embedded Firmware & Digital Twin Simulator (Phase 1)
 
 [![ESP32](https://img.shields.io/badge/Hardware-ESP32--WROOM--32-red.svg)](https://www.espressif.com/)
 [![PlatformIO](https://img.shields.io/badge/Framework-PlatformIO%20%2F%20Arduino-orange.svg)](https://platformio.org/)

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 ================================================================================
-ESP32 DIGITAL TWIN SIMULATOR // METODIS BARE-METAL ARCHITECTURE
+ESP32 DIGITAL TWIN SIMULATOR // BARE-METAL ARCHITECTURE
 ================================================================================
 Elite UI/UX Desktop Telemetry Dashboard built with PySide6 and PyQtGraph.
 Simulates ESP32 12-bit ADC noise, O(1) Circular Buffer Filter, and State Machine.
@@ -243,7 +243,7 @@ class DigitalTwinSimulator(QMainWindow):
     def __init__(self):
         super().__init__()
 
-        self.setWindowTitle("ESP32 DIGITAL TWIN // METODIS TELEMETRY DASHBOARD")
+        self.setWindowTitle("ESP32 DIGITAL TWIN // TELEMETRY DASHBOARD")
         self.resize(1340, 840)
         self.setMinimumSize(1100, 700)
 

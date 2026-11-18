@@ -1,7 +1,7 @@
 /**
  * @file state_machine.h
  * @brief Non-blocking State Machine & Sensor Processing Interface
- * @project ESP32 Metodis Production Firmware - Phase 1
+ * @project ESP32 Production Firmware - Phase 1
  * 
  * Hardware Target: ESP32-WROOM-32 / ESP32 SoC
  * Architecture: Event-driven, non-blocking cooperative loop

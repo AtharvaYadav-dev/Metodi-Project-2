@@ -1,6 +1,6 @@
 /**
  * @file main.cpp
- * @brief Main Entry Point for ESP32 Metodis Embedded Firmware (Phase 1)
+ * @brief Main Entry Point for ESP32 Embedded Firmware (Phase 1)
  * @details Adheres strictly to non-blocking, bare-metal C++ embedded architecture.
  *          Modular logic is encapsulated inside include/state_machine.h and src/state_machine.cpp.
  */
@@ -25,7 +25,7 @@ void setup() {
     stateMachineInit();
 
     Serial.println(F("=================================================="));
-    Serial.println(F("  ESP32 METODIS FIRMWARE - PHASE 1 INITIALIZED    "));
+    Serial.println(F("  ESP32 FIRMWARE - PHASE 1 INITIALIZED            "));
     Serial.println(F("=================================================="));
 }
 

@@ -1,9 +1,9 @@
 ================================================================================
-ESP32 METODIS EMBEDDED SYSTEM & DIGITAL TWIN SIMULATOR
+ESP32 EMBEDDED SYSTEM & DIGITAL TWIN SIMULATOR
 COMPREHENSIVE TECHNICAL ENGINEERING SUMMARY & ARCHITECTURE AUDIT
 ================================================================================
 Generated Date : 2026-11-18
-Project Name   : ESP32 Metodis Embedded Firmware & Digital Twin Simulator
+Project Name   : ESP32 Embedded Firmware & Digital Twin Simulator
 Platform       : PlatformIO / Arduino Framework (ESP32-WROOM-32) + PySide6 + React
 Target Hardw.  : Espressif ESP32 SoC (Tensilica Xtensa Dual-Core 32-bit LX6)
 Author/Role    : Senior Embedded Systems Architect & Elite Frontend Engineer
@@ -44,7 +44,7 @@ TABLE OF CONTENTS:
 ================================================================================
 The objective of this project was the complete architectural design, bare-metal
 firmware development, simulation tooling, and full-stack digital twin dashboard
-for Phase 1 of the Metodis ESP32 production firmware.
+for Phase 1 of the ESP32 production firmware.
 
 Key milestones accomplished:
   [✓] Bare-metal, non-blocking modular C++ firmware for ESP32 (Arduino/PlatformIO).
@@ -61,7 +61,7 @@ Key milestones accomplished:
 ================================================================================
 2. COMPLETE FILE TREE & REPOSITORY INVENTORY
 ================================================================================
-Metodis Project/
+Firmware Project/
 ├── include/
 │   └── state_machine.h          [C++ Header: Enums, Pin Definitions, API Prototypes]
 ├── src/

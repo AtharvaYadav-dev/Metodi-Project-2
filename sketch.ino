@@ -1,6 +1,6 @@
 /**
  * @file sketch.ino
- * @brief ESP32 Metodis Production Firmware - Phase 1 (Single-File / Wokwi / Arduino IDE Ready)
+ * @brief ESP32 Production Firmware - Phase 1 (Single-File / Wokwi / Arduino IDE Ready)
  * @details Complete self-contained version for Arduino IDE and Wokwi simulation.
  *          Strictly non-blocking, zero delays, 12-bit ADC with Moving Average Filter.
  */
@@ -193,7 +193,7 @@ void setup() {
     stateMachineInit();
 
     Serial.println(F("=================================================="));
-    Serial.println(F("  ESP32 METODIS FIRMWARE - PHASE 1 INITIALIZED    "));
+    Serial.println(F("  ESP32 FIRMWARE - PHASE 1 INITIALIZED            "));
     Serial.println(F("=================================================="));
 }
 

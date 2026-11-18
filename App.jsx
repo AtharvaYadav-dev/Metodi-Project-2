@@ -12,7 +12,7 @@ import {
 
 /**
  * =============================================================================
- * ESP32 DIGITAL TWIN SIMULATOR // METODIS BARE-METAL ARCHITECTURE (v2.0)
+ * ESP32 DIGITAL TWIN SIMULATOR // BARE-METAL ARCHITECTURE (v2.0)
  * =============================================================================
  * SpaceX / Palantir Telemetry Dashboard with Dual-Sensor O(1) Filtering,
  * Thermal Closed-Loop Control, and Cyberpunk Security Clearance Terminal.
