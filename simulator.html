@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ESP32 Digital Twin // Live Telemetry Dashboard v2.0</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      background-color: #0D0D12;
+      color: #C0C0D4;
+      font-family: Consolas, 'Courier New', monospace;
+    }
+  </style>
+</head>
+<body class="min-h-screen bg-[#0D0D12] text-[#C0C0D4] font-mono p-4 lg:p-6 flex flex-col gap-5 antialiased">
+
+  <!-- =========================================================================
+       VIEW A: SECURE ACCESS TERMINAL (LOGIN)
+       ========================================================================= -->
+  <div id="loginView" class="fixed inset-0 bg-[#0D0D12] z-50 flex items-center justify-center p-4">
+    <div class="relative w-full max-w-md bg-[#1A1A24] border border-[#2B2B3D] rounded-2xl p-8 shadow-[0_0_50px_rgba(0,0,0,0.8)] flex flex-col gap-6">
+      <div class="flex items-center justify-between border-b border-[#2B2B3D] pb-4">
+        <div class="flex items-center gap-2">
+          <span class="w-2.5 h-2.5 rounded-full bg-[#00F5D4] animate-ping"></span>
+          <span class="text-[11px] font-bold text-[#00F5D4] tracking-widest uppercase">SECURE TELEMETRY GATEWAY</span>
+        </div>
+        <span class="text-[10px] text-[#6F6F8C] bg-[#12121A] px-2 py-0.5 rounded border border-[#2B2B3D]">RESTRICTED</span>
+      </div>
+
+      <div class="text-center flex flex-col gap-1">
+        <h1 class="text-xl font-black text-white tracking-widest">ESP32 DIGITAL TWIN</h1>
+        <p class="text-xs text-[#6F6F8C] tracking-wide">FIRMWARE TELEMETRY &amp; HARDWARE SIMULATOR</p>
+      </div>
+
+      <form id="loginForm" class="flex flex-col gap-4">
+        <div class="flex flex-col gap-1.5">
+          <label class="text-[10px] font-bold text-[#8E8EA8] tracking-wider uppercase">SECURITY CLEARANCE PASSPHRASE:</label>
+          <div class="relative">
+            <input id="pwdInput" type="password" placeholder="ENTER ACCESS KEY..." autofocus class="w-full bg-[#12121A] border border-[#2B2B3D] focus:border-[#00F5D4] focus:outline-none rounded-lg px-4 py-3 text-sm text-[#00F5D4] font-bold tracking-widest placeholder-[#44445A] transition shadow-inner" />
+            <button type="button" id="togglePwdBtn" class="absolute right-3 top-3 text-[10px] text-[#6F6F8C] hover:text-[#00F5D4] transition font-bold select-none cursor-pointer">[SHOW]</button>
+          </div>
+        </div>
+
+        <div id="errorAlert" class="hidden p-3 bg-[#400810] border border-[#FF1744] rounded-lg text-center text-xs font-bold text-[#FF1744] tracking-wider animate-pulse shadow-[0_0_15px_rgba(255,23,68,0.4)]">
+          ⚠ INVALID CREDENTIALS // ACCESS DENIED
+        </div>
+
+        <div id="successAlert" class="hidden p-3 bg-[#0B2D29] border border-[#00F5D4] rounded-lg text-center text-xs font-bold text-[#00F5D4] tracking-widest shadow-[0_0_20px_rgba(0,245,212,0.5)]">
+          ✓ ACCESS GRANTED // INITIALIZING SYSTEM...
+        </div>
+
+        <button type="submit" class="mt-2 w-full py-3 bg-[#00F5D4] hover:bg-[#00D6BA] text-black font-extrabold text-xs tracking-widest rounded-lg transition-all shadow-[0_0_20px_rgba(0,245,212,0.3)] hover:shadow-[0_0_30px_rgba(0,245,212,0.6)] cursor-pointer">
+          AUTHENTICATE SESSION
+        </button>
+      </form>
+
+      <div class="pt-2 border-t border-[#2B2B3D] flex items-center justify-between text-[10px] text-[#55556E]">
+        <span>AUTHORIZED PERSONNEL ONLY</span>
+        <span class="text-[#8E8EA8]">CLEARANCE LEVEL: 4</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- =========================================================================
+       VIEW B: TELEMETRY DASHBOARD
+       ========================================================================= -->
+  <div id="dashboardView" class="flex flex-col gap-5">
+    <header class="bg-[#1A1A24] border border-[#2B2B3D] rounded-xl px-6 py-4 flex flex-wrap items-center justify-between gap-4 shadow-2xl">
+      <div class="flex items-center gap-4">
+        <div class="relative flex items-center justify-center">
+          <span class="w-3.5 h-3.5 rounded-full bg-[#00F5D4] animate-ping absolute opacity-75"></span>
+          <span class="w-3 h-3 rounded-full bg-[#00F5D4] relative"></span>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="text-white text-base lg:text-lg font-bold tracking-wider">ESP32 DIGITAL TWIN // TELEMETRY DASHBOARD</h1>
+            <span class="bg-[#12121A] text-[#00F5D4] text-[10px] font-bold px-2 py-0.5 rounded border border-[#2B2B3D]">PROD v2.0</span>
+          </div>
+          <p class="text-[11px] text-[#6F6F8C] tracking-wide">CLOSED-LOOP THERMAL SUPERVISOR • DUAL-CHANNEL SAR ADC • 20Hz TICK</p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-3 text-xs font-semibold">
+        <div class="bg-[#12121A] border border-[#2B2B3D] px-3 py-1.5 rounded-lg flex items-center gap-2">
+          <span class="text-[#6F6F8C]">TICK:</span>
+          <span class="text-[#00B4D8]">20 Hz (50ms)</span>
+        </div>
+        <div class="bg-[#12121A] border border-[#2B2B3D] px-3 py-1.5 rounded-lg flex items-center gap-2">
+          <span class="text-[#6F6F8C]">UPTIME:</span>
+          <span id="uptimeDisplay" class="text-[#FFBE0B]">00:00:00</span>
+        </div>
+        <button id="faultBtn" class="px-3.5 py-1.5 rounded-lg font-bold text-xs border bg-[#2D0F18] text-[#FF0054] border-[#FF0054]/50 hover:bg-[#FF0054] hover:text-white transition">
+          INJECT FAULT
+        </button>
+        <button id="logoutBtn" class="px-3 py-1.5 rounded-lg font-bold text-xs bg-[#212130] hover:bg-[#2B2B3D] text-[#8E8EA8] hover:text-white border border-[#36364D] transition">
+          LOCK TERMINAL
+        </button>
+      </div>
+    </header>
+
+    <main class="grid grid-cols-1 lg:grid-cols-12 gap-5 flex-1">
+      <!-- LEFT COLUMN -->
+      <section class="lg:col-span-5 flex flex-col gap-5">
+        <!-- PANEL 1: STATE MACHINE -->
+        <div class="bg-[#1A1A24] border border-[#2B2B3D] rounded-xl p-5 flex flex-col gap-4 shadow-xl">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-bold text-[#7D7D9A] tracking-wider uppercase">STATE MACHINE // SUPERVISORY LOGIC</span>
+            <span id="overrideBadge" class="text-[10px] text-[#00F5D4] bg-[#00F5D4]/10 px-2 py-0.5 rounded border border-[#00F5D4]/30">AUTONOMOUS DWELL (4.0s)</span>
+          </div>
+
+          <div id="stateCard" class="p-4 rounded-lg flex items-center justify-between border-2 transition-all duration-300" style="background-color: rgba(0,180,216,0.12); border-color: #00B4D8;">
+            <div>
+              <div class="text-[10px] text-[#8E8EA8] uppercase font-bold tracking-wider flex items-center gap-2">
+                <span>ACTIVE MCU STATE</span>
+                <span id="triggerHint" class="hidden text-[9px] text-[#FFBE0B] bg-[#12121A] px-1.5 py-0.2 rounded border border-[#2B2B3D]"></span>
+              </div>
+              <div id="stateNameDisplay" class="text-2xl font-black tracking-widest mt-0.5 text-[#00B4D8]">STATE_INIT</div>
+            </div>
+            <div id="stateOrb" class="w-4 h-4 rounded-full animate-pulse bg-[#00B4D8]"></div>
+          </div>
+
+          <div class="grid grid-cols-4 gap-2 text-center text-[10px] font-bold">
+            <div id="chip-INIT" class="py-2 px-1 rounded border border-[#00B4D8] text-[#00B4D8] bg-[#00B4D8]/10 font-bold">INIT</div>
+            <div id="chip-IDLE" class="py-2 px-1 rounded border border-[#2B2B3D] text-[#55556B] bg-[#12121A] font-bold">IDLE</div>
+            <div id="chip-HEATING" class="py-2 px-1 rounded border border-[#2B2B3D] text-[#55556B] bg-[#12121A] font-bold">HEATING</div>
+            <div id="chip-COOLING" class="py-2 px-1 rounded border border-[#2B2B3D] text-[#55556B] bg-[#12121A] font-bold">COOLING</div>
+          </div>
+
+          <div class="flex flex-col gap-1.5 pt-1">
+            <div class="flex justify-between text-[10px] text-[#6F6F8C]">
+              <span>DWELL PROGRESS</span>
+              <span id="dwellPercent">0%</span>
+            </div>
+            <div class="w-full h-1.5 bg-[#12121A] rounded-full overflow-hidden border border-[#2B2B3D]">
+              <div id="dwellBar" class="h-full rounded-full transition-all duration-100 bg-[#00B4D8]" style="width: 0%;"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- PANEL 2: DUAL TELEMETRY WIDGETS -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <!-- BATTERY WIDGET -->
+          <div class="bg-[#1A1A24] border border-[#2B2B3D] rounded-xl p-4 flex flex-col gap-3 shadow-xl">
+            <div class="flex items-center justify-between">
+              <span class="text-[11px] font-bold text-[#7D7D9A] tracking-wider uppercase">BATTERY LEVEL [PIN 35]</span>
+              <span id="batteryPercentText" class="text-[10px] text-[#00FF66] font-bold">50%</span>
+            </div>
+            <div class="relative w-full h-8 bg-[#12121A] border border-[#2B2B3D] rounded-lg overflow-hidden p-1 shadow-inner">
+              <div id="batteryProgressBar" class="h-full rounded transition-all duration-150 flex items-center justify-end pr-2 font-bold text-xs" style="width: 50%; background: linear-gradient(90deg, #FFBE0B 0%, #00B4D8 50%, #00F5D4 100%);">
+                <span id="batteryInnerPct" class="text-black font-extrabold text-[11px]">50%</span>
+              </div>
+            </div>
+            <div class="grid grid-cols-2 gap-2 text-[10px] bg-[#12121A] p-2.5 rounded border border-[#2B2B3D]">
+              <div><span class="text-[#6F6F8C] block">FILTERED RAW:</span><span id="metricFilteredRaw" class="text-[#00FF66] font-bold text-xs">3072 LSB</span></div>
+              <div><span class="text-[#6F6F8C] block">VOLTAGE:</span><span id="metricVoltage" class="text-[#00B4D8] font-bold text-xs">2.47 V</span></div>
+            </div>
+          </div>
+
+          <!-- TEMPERATURE WIDGET -->
+          <div class="bg-[#1A1A24] border border-[#2B2B3D] rounded-xl p-4 flex flex-col gap-3 shadow-xl">
+            <div class="flex items-center justify-between">
+              <span class="text-[11px] font-bold text-[#7D7D9A] tracking-wider uppercase">THERMAL SENSOR [PIN 34]</span>
+              <span id="tempBadge" class="text-[10px] font-bold px-1.5 py-0.5 rounded border border-[#FFBE0B] text-[#FFBE0B]">55°C</span>
+            </div>
+            <div class="relative w-full h-8 bg-[#12121A] border border-[#2B2B3D] rounded-lg overflow-hidden p-1 shadow-inner">
+              <div id="tempProgressBar" class="h-full rounded transition-all duration-150 flex items-center justify-end pr-2 font-bold text-xs" style="width: 45%; background: linear-gradient(90deg, #00B4D8 0%, #FFBE0B 100%);">
+                <span id="tempInnerVal" class="text-black font-extrabold text-[11px]">55°C</span>
+              </div>
+            </div>
+            <div class="grid grid-cols-2 gap-2 text-[10px] bg-[#12121A] p-2.5 rounded border border-[#2B2B3D]">
+              <div><span class="text-[#6F6F8C] block">RAW JITTER:</span><span id="metricRawTemp" class="text-[#FF8800] font-bold text-xs">55°C</span></div>
+              <div><span class="text-[#6F6F8C] block">STATUS:</span><span id="tempStatusText" class="text-[#00FF66] font-bold text-xs">NOMINAL</span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- PANEL 3: DUAL SLIDERS -->
+        <div class="bg-[#1A1A24] border border-[#2B2B3D] rounded-xl p-5 flex flex-col gap-4 shadow-xl">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-bold text-[#7D7D9A] tracking-wider uppercase">HARDWARE INJECTION ENGINE</span>
+            <span class="text-[10px] text-[#A0A0BA] bg-[#12121A] px-2 py-0.5 rounded border border-[#2B2B3D]">DUAL ADC POTENTIOMETERS</span>
+          </div>
+
+          <!-- Battery Slider -->
+          <div class="flex flex-col gap-1.5">
+            <div class="flex justify-between text-xs font-bold">
+              <span class="text-[#8E8EA8]">1. BATTERY VOLTAGE DIVIDER [PIN 35]</span>
+              <span id="batteryValDisplay" class="text-[#00F5D4]">3072 LSB</span>
+            </div>
+            <input id="batterySlider" type="range" min="0" max="4095" value="3072" class="w-full h-2 bg-[#12121A] rounded-lg appearance-none cursor-pointer accent-[#00F5D4] border border-[#2B2B3D]" />
+            <div class="flex justify-between text-[10px] text-[#55556B]">
+              <span>0 LSB (0.0V)</span><span>2048 (0% Cutoff)</span><span>4095 (100% Full)</span>
+            </div>
+          </div>
+
+          <!-- Temp Slider -->
+          <div class="flex flex-col gap-1.5 pt-1">
+            <div class="flex justify-between text-xs font-bold">
+              <span class="text-[#8E8EA8]">2. THERMAL SENSOR [PIN 34]</span>
+              <span id="tempValDisplay" class="text-[#FF9E00]">55°C</span>
+            </div>
+            <input id="tempSlider" type="range" min="0" max="120" value="55" class="w-full h-2 bg-[#12121A] rounded-lg appearance-none cursor-pointer accent-[#FF9E00] border border-[#2B2B3D]" />
+            <div class="flex justify-between text-[10px] text-[#55556B]">
+              <span class="text-[#FF0054] font-bold">&lt;40°C (HEATING)</span><span>NOMINAL (40-80°C)</span><span class="text-[#00F5D4] font-bold">&gt;80°C (COOLING)</span>
+            </div>
+          </div>
+
+          <!-- Quick Buttons -->
+          <div class="grid grid-cols-4 gap-2 pt-1">
+            <button onclick="setTemp(25)" class="py-1 px-2 bg-[#212130] hover:bg-[#2D0F18] text-[10px] font-bold text-[#FF0054] rounded border border-[#FF0054]/40 transition">COLD (25°C)</button>
+            <button onclick="setTemp(55)" class="py-1 px-2 bg-[#212130] hover:bg-[#2B2B3D] text-[10px] font-bold text-[#FFBE0B] rounded border border-[#36364D] transition">WARM (55°C)</button>
+            <button onclick="setTemp(95)" class="py-1 px-2 bg-[#212130] hover:bg-[#0B2D29] text-[10px] font-bold text-[#00F5D4] rounded border border-[#00F5D4]/40 transition">HOT (95°C)</button>
+            <button onclick="resetSliders()" class="py-1 px-2 bg-[#212130] hover:bg-[#2B2B3D] text-[10px] font-bold text-[#E2E2F0] rounded border border-[#36364D] transition">RESET</button>
+          </div>
+
+          <div class="bg-[#12121A] border border-[#2B2B3D] rounded-lg p-2.5 flex items-center justify-between">
+            <label class="flex items-center gap-2 cursor-pointer select-none">
+              <input id="noiseCheckbox" type="checkbox" checked class="w-4 h-4 rounded bg-[#1A1A24] border-[#2B2B3D] accent-[#FF0054] cursor-pointer" />
+              <span class="text-[11px] font-bold text-[#A0A0BA]">SIMULATE ELECTRICAL &amp; THERMAL JITTER</span>
+            </label>
+            <span class="text-[10px] font-bold px-2 py-0.5 rounded text-[#FF0054] bg-[#FF0054]/10">±250 LSB / ±3.5°C</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- RIGHT COLUMN: 3-CHANNEL OSCILLOSCOPE -->
+      <section class="lg:col-span-7 bg-[#1A1A24] border border-[#2B2B3D] rounded-xl p-5 flex flex-col shadow-2xl">
+        <div class="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-[#2B2B3D]">
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="text-xs font-bold text-white tracking-wider uppercase">TRIPLE-CHANNEL TELEMETRY OSCILLOSCOPE</span>
+              <span class="bg-[#12121A] text-[#00FF66] text-[10px] font-bold px-2 py-0.5 rounded border border-[#2B2B3D]">LIVE STREAM (20Hz)</span>
+            </div>
+            <p class="text-[11px] text-[#6F6F8C] mt-0.5">Real-time proof of O(1) noise cancellation across Voltage (Left) and Temperature (Right)</p>
+          </div>
+          <div class="flex flex-wrap items-center gap-2 text-xs font-bold">
+            <div class="flex items-center gap-1.5 bg-[#12121A] px-2 py-1 rounded border border-[#2B2B3D]">
+              <span class="w-2 h-2 rounded-full bg-[#FF3355]"></span>
+              <span class="text-[#FF3355] text-[10px]">RAW BATTERY</span>
+            </div>
+            <div class="flex items-center gap-1.5 bg-[#12121A] px-2 py-1 rounded border border-[#2B2B3D]">
+              <span class="w-2 h-2 rounded-full bg-[#00FF66]"></span>
+              <span class="text-[#00FF66] text-[10px]">FILTERED BATTERY</span>
+            </div>
+            <div class="flex items-center gap-1.5 bg-[#12121A] px-2 py-1 rounded border border-[#2B2B3D]">
+              <span class="w-2 h-2 rounded-full bg-[#FF9E00]"></span>
+              <span class="text-[#FF9E00] text-[10px]">FILTERED TEMP (°C)</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex-1 w-full min-h-[420px] pt-4 relative flex items-center justify-center">
+          <canvas id="scopeCanvas" class="w-full h-full rounded-lg"></canvas>
+        </div>
+
+        <div class="pt-3 border-t border-[#2B2B3D] flex flex-wrap items-center justify-between text-[11px] text-[#6F6F8C] gap-2">
+          <div class="flex items-center gap-3">
+            <span>BUFFER: 60 TICKS (~3.0s)</span>
+            <span>•</span>
+            <span>BATTERY ATTENUATION: ~18.2 dB</span>
+            <span>•</span>
+            <span>THERMAL JITTER: ~14.5 dB</span>
+          </div>
+          <div class="text-[#00F5D4] font-bold">CLOSED-LOOP TELEMETRY: ACTIVE</div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    // --- AUTHENTICATION ---
+    const loginView = document.getElementById('loginView');
+    const loginForm = document.getElementById('loginForm');
+    const pwdInput = document.getElementById('pwdInput');
+    const togglePwdBtn = document.getElementById('togglePwdBtn');
+    const errorAlert = document.getElementById('errorAlert');
+    const successAlert = document.getElementById('successAlert');
+    const logoutBtn = document.getElementById('logoutBtn');
+
+    let isAuthenticated = false;
+
+    togglePwdBtn.addEventListener('click', () => {
+      if (pwdInput.type === 'password') {
+        pwdInput.type = 'text';
+        togglePwdBtn.innerText = '[HIDE]';
+      } else {
+        pwdInput.type = 'password';
+        togglePwdBtn.innerText = '[SHOW]';
+      }
+    });
+
+    loginForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      if (pwdInput.value === 'METODI2026') {
+        errorAlert.classList.add('hidden');
+        successAlert.classList.remove('hidden');
+        setTimeout(() => {
+          isAuthenticated = true;
+          loginView.classList.add('hidden');
+        }, 900);
+      } else {
+        errorAlert.classList.remove('hidden');
+        pwdInput.value = '';
+      }
+    });
+
+    logoutBtn.addEventListener('click', () => {
+      isAuthenticated = false;
+      loginView.classList.remove('hidden');
+      successAlert.classList.add('hidden');
+      errorAlert.classList.add('hidden');
+      pwdInput.value = '';
+    });
+
+    // --- STATE MACHINE & CONSTANTS ---
+    const STATES = [
+      { id: 'STATE_INIT', name: 'INIT', color: '#00B4D8', bg: 'rgba(0,180,216,0.12)' },
+      { id: 'STATE_IDLE', name: 'IDLE', color: '#FFBE0B', bg: 'rgba(255,190,11,0.12)' },
+      { id: 'STATE_HEATING', name: 'HEATING', color: '#FF0054', bg: 'rgba(255,0,84,0.15)' },
+      { id: 'STATE_COOLING', name: 'COOLING', color: '#00F5D4', bg: 'rgba(0,245,212,0.12)' }
+    ];
+    let stateIdx = 0;
+    let faultActive = false;
+    let dwellMs = 0;
+    const STATE_DWELL_MAX = 4000;
+    let thermalOverride = null;
+
+    // --- DUAL O(1) CIRCULAR FILTERS ---
+    const FILTER_SIZE = 10;
+    const bFilter = { buf: new Array(FILTER_SIZE).fill(3072), idx: 0, sum: 3072 * FILTER_SIZE, val: 3072 };
+    const tFilter = { buf: new Array(FILTER_SIZE).fill(55), idx: 0, sum: 55 * FILTER_SIZE, val: 55 };
+
+    function updateFilter(f, sample) {
+      f.sum -= f.buf[f.idx];
+      f.buf[f.idx] = sample;
+      f.sum += sample;
+      f.idx = (f.idx + 1) % FILTER_SIZE;
+      f.val = f.sum / FILTER_SIZE;
+      return f.val;
+    }
+
+    // --- OSCILLOSCOPE BUFFERS ---
+    const MAX_SAMPLES = 60;
+    const rawBatteryBuf = new Array(MAX_SAMPLES).fill(3072);
+    const filtBatteryBuf = new Array(MAX_SAMPLES).fill(3072);
+    const filtTempBuf = new Array(MAX_SAMPLES).fill(55);
+
+    let uptimeMs = 0;
+    const batterySlider = document.getElementById('batterySlider');
+    const tempSlider = document.getElementById('tempSlider');
+    const noiseCheckbox = document.getElementById('noiseCheckbox');
+
+    function setTemp(v) {
+      tempSlider.value = v;
+      document.getElementById('tempValDisplay').innerText = v + '°C';
+    }
+    function resetSliders() {
+      batterySlider.value = 3072;
+      tempSlider.value = 55;
+      document.getElementById('batteryValDisplay').innerText = '3072 LSB';
+      document.getElementById('tempValDisplay').innerText = '55°C';
+    }
+
+    batterySlider.addEventListener('input', (e) => {
+      document.getElementById('batteryValDisplay').innerText = e.target.value + ' LSB';
+    });
+    tempSlider.addEventListener('input', (e) => {
+      document.getElementById('tempValDisplay').innerText = e.target.value + '°C';
+    });
+
+    // --- FAULT TOGGLE ---
+    const faultBtn = document.getElementById('faultBtn');
+    faultBtn.addEventListener('click', () => {
+      faultActive = !faultActive;
+      if (faultActive) {
+        faultBtn.innerText = "CLEAR FAULT";
+        faultBtn.className = "px-3.5 py-1.5 rounded-lg font-bold text-xs border bg-[#FF0054] text-white border-[#FF0054] shadow-[0_0_15px_rgba(255,0,84,0.6)] animate-pulse";
+        updateStateUI({ id: 'STATE_FAULT', name: 'FAULT', color: '#FF1744', bg: 'rgba(255,23,68,0.25)' });
+      } else {
+        faultBtn.innerText = "INJECT FAULT";
+        faultBtn.className = "px-3.5 py-1.5 rounded-lg font-bold text-xs border bg-[#2D0F18] text-[#FF0054] border-[#FF0054]/50 hover:bg-[#FF0054] hover:text-white transition";
+        stateIdx = 1;
+        dwellMs = 0;
+        updateStateUI(STATES[stateIdx]);
+      }
+    });
+
+    function updateStateUI(st) {
+      const card = document.getElementById('stateCard');
+      const text = document.getElementById('stateNameDisplay');
+      const orb = document.getElementById('stateOrb');
+
+      card.style.backgroundColor = st.bg;
+      card.style.borderColor = st.color;
+      text.innerText = st.id;
+      text.style.color = st.color;
+      orb.style.backgroundColor = st.color;
+
+      ['INIT', 'IDLE', 'HEATING', 'COOLING'].forEach(name => {
+        const chip = document.getElementById('chip-' + name);
+        if (st.name === name) {
+          chip.className = "py-2 px-1 rounded border shadow-lg scale-105 font-bold";
+          chip.style.borderColor = st.color;
+          chip.style.color = st.color;
+          chip.style.backgroundColor = st.bg;
+        } else {
+          chip.className = "py-2 px-1 rounded border border-[#2B2B3D] text-[#55556B] bg-[#12121A] font-bold";
+          chip.style = "";
+        }
+      });
+    }
+
+    // --- CLOSED LOOP THERMAL SUPERVISOR (100ms TICK) ---
+    setInterval(() => {
+      if (!isAuthenticated || faultActive) return;
+
+      const currentTemp = tFilter.val;
+      const overrideBadge = document.getElementById('overrideBadge');
+      const triggerHint = document.getElementById('triggerHint');
+
+      if (currentTemp > 80) {
+        // Temperature > 80°C -> MUST force STATE_COOLING (Cyan)
+        thermalOverride = 'COOLING';
+        overrideBadge.innerText = "THERMAL OVERRIDE ACTIVE";
+        overrideBadge.className = "text-[10px] font-bold text-[#FF0054] bg-[#FF0054]/10 px-2 py-0.5 rounded border border-[#FF0054]/30 animate-pulse";
+        triggerHint.classList.remove('hidden');
+        triggerHint.innerText = "TRIGGER: > 80°C";
+        updateStateUI(STATES[3]); // COOLING
+        dwellMs = 0;
+      } else if (currentTemp < 40) {
+        // Temperature < 40°C -> MUST force STATE_HEATING (Red)
+        thermalOverride = 'HEATING';
+        overrideBadge.innerText = "THERMAL OVERRIDE ACTIVE";
+        overrideBadge.className = "text-[10px] font-bold text-[#FF0054] bg-[#FF0054]/10 px-2 py-0.5 rounded border border-[#FF0054]/30 animate-pulse";
+        triggerHint.classList.remove('hidden');
+        triggerHint.innerText = "TRIGGER: < 40°C";
+        updateStateUI(STATES[2]); // HEATING
+        dwellMs = 0;
+      } else {
+        // Nominal (40-80°C) -> Standard Timed Transitions
+        thermalOverride = null;
+        overrideBadge.innerText = "AUTONOMOUS DWELL (4.0s)";
+        overrideBadge.className = "text-[10px] text-[#00F5D4] bg-[#00F5D4]/10 px-2 py-0.5 rounded border border-[#00F5D4]/30";
+        triggerHint.classList.add('hidden');
+
+        dwellMs += 100;
+        if (dwellMs >= STATE_DWELL_MAX) {
+          dwellMs = 0;
+          stateIdx = (stateIdx + 1) % STATES.length;
+          updateStateUI(STATES[stateIdx]);
+        }
+      }
+
+      const pct = thermalOverride ? 100 : Math.round((dwellMs / STATE_DWELL_MAX) * 100);
+      document.getElementById('dwellPercent').innerText = pct + '%';
+      document.getElementById('dwellBar').style.width = pct + '%';
+      document.getElementById('dwellBar').style.backgroundColor = thermalOverride === 'COOLING' ? '#00F5D4' : thermalOverride === 'HEATING' ? '#FF0054' : STATES[stateIdx].color;
+    }, 100);
+
+    // --- CANVAS DUAL-AXIS OSCILLOSCOPE DRAWING ---
+    const canvas = document.getElementById('scopeCanvas');
+    const ctx = canvas.getContext('2d');
+
+    function resizeCanvas() {
+      const rect = canvas.parentElement.getBoundingClientRect();
+      canvas.width = rect.width * window.devicePixelRatio;
+      canvas.height = rect.height * window.devicePixelRatio;
+      ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    function drawScope() {
+      const w = canvas.width / window.devicePixelRatio;
+      const h = canvas.height / window.devicePixelRatio;
+      ctx.clearRect(0, 0, w, h);
+
+      // Grid
+      ctx.strokeStyle = "#232333";
+      ctx.lineWidth = 1;
+      for (let y = 0; y < h; y += 40) {
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+      }
+      for (let x = 0; x < w; x += 50) {
+        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
+      }
+
+      // Left Axis Map: ADC (0 to 4400)
+      const mapY_ADC = (v) => h - ((v / 4400) * (h - 30) + 15);
+      // Right Axis Map: Temp (0 to 130 °C)
+      const mapY_Temp = (v) => h - ((v / 130) * (h - 30) + 15);
+
+      // Battery Ref: 2048
+      const y2048 = mapY_ADC(2048);
+      ctx.strokeStyle = "#00B4D8";
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath(); ctx.moveTo(0, y2048); ctx.lineTo(w, y2048); ctx.stroke();
+      ctx.fillStyle = "#00B4D8";
+      ctx.font = "9px Consolas, monospace";
+      ctx.fillText("0% CUTOFF (2048)", 10, y2048 - 4);
+
+      // Battery Ref: 4095
+      const y4095 = mapY_ADC(4095);
+      ctx.strokeStyle = "#FFBE0B";
+      ctx.beginPath(); ctx.moveTo(0, y4095); ctx.lineTo(w, y4095); ctx.stroke();
+      ctx.fillStyle = "#FFBE0B";
+      ctx.fillText("100% FULL (4095)", 10, y4095 + 12);
+
+      // Temp Ref: 40°C Heating
+      const y40 = mapY_Temp(40);
+      ctx.strokeStyle = "#FF0054";
+      ctx.beginPath(); ctx.moveTo(0, y40); ctx.lineTo(w, y40); ctx.stroke();
+      ctx.fillStyle = "#FF0054";
+      ctx.fillText("40°C HEATING DEMAND", w - 140, y40 + 12);
+
+      // Temp Ref: 80°C Cooling
+      const y80 = mapY_Temp(80);
+      ctx.strokeStyle = "#00F5D4";
+      ctx.beginPath(); ctx.moveTo(0, y80); ctx.lineTo(w, y80); ctx.stroke();
+      ctx.fillStyle = "#00F5D4";
+      ctx.fillText("80°C OVERHEAT COOLING", w - 140, y80 - 4);
+      ctx.setLineDash([]);
+
+      const step = w / (MAX_SAMPLES - 1);
+
+      // Trace 1: Raw Noisy ADC (Red Faded)
+      ctx.strokeStyle = "rgba(255, 51, 85, 0.45)";
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      for (let i = 0; i < MAX_SAMPLES; i++) {
+        const x = i * step;
+        const y = mapY_ADC(rawBatteryBuf[i]);
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+
+      // Trace 2: Filtered Battery (Neon Green Thick)
+      ctx.strokeStyle = "#00FF66";
+      ctx.lineWidth = 3;
+      ctx.shadowColor = "rgba(0, 255, 102, 0.5)";
+      ctx.shadowBlur = 8;
+      ctx.beginPath();
+      for (let i = 0; i < MAX_SAMPLES; i++) {
+        const x = i * step;
+        const y = mapY_ADC(filtBatteryBuf[i]);
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+
+      // Trace 3: Filtered Temp (Neon Orange on Secondary Axis)
+      ctx.strokeStyle = "#FF9E00";
+      ctx.lineWidth = 2.5;
+      ctx.shadowColor = "rgba(255, 158, 0, 0.5)";
+      ctx.shadowBlur = 6;
+      ctx.beginPath();
+      for (let i = 0; i < MAX_SAMPLES; i++) {
+        const x = i * step;
+        const y = mapY_Temp(filtTempBuf[i]);
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+    }
+
+    // --- 50ms MCU SUPER-LOOP ---
+    setInterval(() => {
+      if (!isAuthenticated) return;
+
+      uptimeMs += 50;
+      const totalSec = Math.floor(uptimeMs / 1000);
+      const hrs = String(Math.floor(totalSec / 3600)).padStart(2, '0');
+      const mins = String(Math.floor((totalSec % 3600) / 60)).padStart(2, '0');
+      const secs = String(totalSec % 60).padStart(2, '0');
+      document.getElementById('uptimeDisplay').innerText = `${hrs}:${mins}:${secs}`;
+
+      // Noise
+      const bBase = Number(batterySlider.value);
+      const tBase = Number(tempSlider.value);
+      let bNoise = 0;
+      let tNoise = 0;
+      if (noiseCheckbox.checked) {
+        bNoise = (Math.random() * 2 - 1) * 250;
+        tNoise = (Math.random() * 2 - 1) * 3.5;
+      }
+      const rawBattery = Math.round(Math.min(4095, Math.max(0, bBase + bNoise)));
+      const rawTemp = Number(Math.min(120, Math.max(0, tBase + tNoise)).toFixed(1));
+
+      const filtBattery = Math.round(updateFilter(bFilter, rawBattery));
+      const filtTemp = Number(updateFilter(tFilter, rawTemp).toFixed(1));
+
+      // Battery mapping [2048, 4095] -> [0%, 100%]
+      let bPct = 0;
+      if (filtBattery <= 2048) bPct = 0;
+      else if (filtBattery >= 4095) bPct = 100;
+      else bPct = Math.round(((filtBattery - 2048) / (4095 - 2048)) * 100);
+      bPct = Math.min(100, Math.max(0, bPct));
+
+      const voltage = ((filtBattery / 4095) * 3.3).toFixed(2);
+
+      // Battery UI
+      document.getElementById('batteryProgressBar').style.width = Math.max(12, bPct) + '%';
+      document.getElementById('batteryPercentText').innerText = bPct + '%';
+      document.getElementById('batteryInnerPct').innerText = bPct + '%';
+      document.getElementById('metricFilteredRaw').innerText = filtBattery + ' LSB';
+      document.getElementById('metricVoltage').innerText = voltage + ' V';
+
+      // Temp UI
+      const tempPct = Math.min(100, Math.max(10, (filtTemp / 120) * 100));
+      const tempBar = document.getElementById('tempProgressBar');
+      tempBar.style.width = tempPct + '%';
+      document.getElementById('tempBadge').innerText = filtTemp + '°C';
+      document.getElementById('tempInnerVal').innerText = filtTemp + '°C';
+      document.getElementById('metricRawTemp').innerText = rawTemp + '°C';
+
+      const statusText = document.getElementById('tempStatusText');
+      if (filtTemp > 80) {
+        statusText.innerText = "COOLING";
+        statusText.className = "text-[#00F5D4] font-bold text-xs";
+        tempBar.style.background = 'linear-gradient(90deg, #FFBE0B 0%, #FF0054 60%, #00F5D4 100%)';
+      } else if (filtTemp < 40) {
+        statusText.innerText = "HEATING";
+        statusText.className = "text-[#FF0054] font-bold text-xs";
+        tempBar.style.background = 'linear-gradient(90deg, #00B4D8 0%, #FF0054 100%)';
+      } else {
+        statusText.innerText = "NOMINAL";
+        statusText.className = "text-[#00FF66] font-bold text-xs";
+        tempBar.style.background = 'linear-gradient(90deg, #00B4D8 0%, #FFBE0B 100%)';
+      }
+
+      // Buffers & Draw
+      rawBatteryBuf.shift(); rawBatteryBuf.push(rawBattery);
+      filtBatteryBuf.shift(); filtBatteryBuf.push(filtBattery);
+      filtTempBuf.shift(); filtTempBuf.push(filtTemp);
+      drawScope();
+    }, 50);
+  </script>
+</body>
+</html>
