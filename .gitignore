@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+package-lock.json
+
+# Build Outputs
+dist/
+dist-ssr/
+*.local
+
+# PlatformIO & Embedded Builds
+.pio/
+.pioenvs/
+.piolibdeps/
+
+# Python Virtual Environments & Bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+
+# Editor & System Files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.log
