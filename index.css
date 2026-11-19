@@ -2,11 +2,58 @@
 @tailwind components;
 @tailwind utilities;
 
-body {
-  margin: 0;
-  padding: 0;
-  background-color: #0D0D12;
-  color: #C0C0D4;
-  font-family: Consolas, 'Courier New', monospace;
-  overflow-x: hidden;
+@layer base {
+  body {
+    margin: 0;
+    padding: 0;
+    background-color: #090A0F;
+    color: #D1D5DB;
+    font-family: 'JetBrains Mono', Consolas, 'Courier New', monospace;
+    overflow-x: hidden;
+  }
+
+  h1, h2, h3, h4, .font-heading {
+    font-family: 'Rajdhani', sans-serif;
+    letter-spacing: 0.05em;
+  }
+}
+
+/* Custom dark aerospace scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0d0f17;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #1f293d;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #06b6d4;
+}
+
+/* Pulsing radar and indicator effects */
+@keyframes radar-pulse {
+  0% { transform: scale(0.95); opacity: 0.8; }
+  50% { transform: scale(1.05); opacity: 1; }
+  100% { transform: scale(0.95); opacity: 0.8; }
+}
+
+.animate-radar-pulse {
+  animation: radar-pulse 2s infinite ease-in-out;
+}
+
+@keyframes flow-dash {
+  to {
+    stroke-dashoffset: -40;
+  }
+}
+
+.animate-flow-dash {
+  animation: flow-dash 1s linear infinite;
 }

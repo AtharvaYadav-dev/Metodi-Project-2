@@ -1,105 +1,109 @@
 /**
  * @file state_machine.h
- * @brief Non-blocking State Machine & Sensor Processing Interface
- * @project ESP32 Production Firmware - Phase 1
- * 
- * Hardware Target: ESP32-WROOM-32 / ESP32 SoC
- * Architecture: Event-driven, non-blocking cooperative loop
+ * @brief Non-Blocking Deterministic State Machine for AeroTherm EV Thermal Loop
+ * @project AeroTherm Phase 2 Hybrid EV Thermal Management System
  */
 
 #pragma once
 
-#include <Arduino.h>
-
-// =============================================================================
-// 1. HARDWARE DEFINITIONS & ADC SPECIFICATIONS
-// =============================================================================
+#include "config.h"
+#include "sensor_filter.h"
+#include "pid_controller.h"
 
 /**
- * @brief GPIO Pin Allocations
- * NOTE: GPIO 34 and GPIO 35 belong to ADC1 (ADC1_CH6 and ADC1_CH7).
- * Unlike ADC2, ADC1 can be sampled continuously without Wi-Fi/Bluetooth DMA conflicts.
- * These pins are input-only (GPI) and do not feature internal software pull-up/pull-down resistors.
- */
-constexpr int TEMP_SENSOR_PIN = 34;  ///< Analog input for Temperature sensor (ADC1_CH6)
-constexpr int BATTERY_PIN     = 35;  ///< Analog input for Battery voltage divider (ADC1_CH7)
-
-// ADC Configuration Parameters
-constexpr uint8_t ADC_RESOLUTION_BITS   = 12;    ///< ESP32 Successive Approximation Register (SAR) ADC 12-bit mode
-constexpr int     ADC_RAW_MAX           = 4095;  ///< Maximum quantized discrete level (2^12 - 1)
-constexpr int     ADC_RAW_MIN           = 0;
-
-// Battery Mapping Thresholds
-constexpr int     BATTERY_RAW_EMPTY     = 2048;  ///< Raw ADC reading corresponding to 0% battery
-constexpr int     BATTERY_RAW_FULL      = 4095;  ///< Raw ADC reading corresponding to 100% battery
-
-// Filtering Parameters
-constexpr size_t  BATTERY_FILTER_SIZE   = 10;    ///< Moving average window depth
-
-// Timing Parameters
-constexpr unsigned long BATTERY_SAMPLE_INTERVAL_MS = 50;  ///< Battery ADC sampling frequency: 20 Hz
-constexpr unsigned long STATE_TIMEOUT_IDLE_MS      = 5000;///< IDLE state dwell duration before heating demonstration
-constexpr unsigned long STATE_TIMEOUT_HEATING_MS   = 5000;///< Active heating cycle duration
-constexpr unsigned long STATE_TIMEOUT_COOLING_MS   = 5000;///< Active cooling cycle duration
-
-// =============================================================================
-// 2. STATE MACHINE ENUMERATIONS
-// =============================================================================
-
-/**
- * @brief Core System Operational States
+ * @brief Core System Operational States (Phase 2 Specification)
  */
 enum SystemState : uint8_t {
-    STATE_INIT = 0,   ///< Power-on self-test, peripheral init, filter pre-seeding
-    STATE_IDLE,       ///< System quiescent; sensors active, awaiting heating demand
-    STATE_HEATING,    ///< Thermal actuator active, closed-loop thermal control
-    STATE_COOLING,    ///< Thermal mitigation / cool-down phase active
-    STATE_FAULT       ///< Critical boundary violation or hardware error latch
+    STATE_IDLE_MODE = 0,           ///< Temp < T1 (40°C): Flaps closed (0°), Pump OFF, PWM 0%
+    STATE_PASSIVE_AERO_COOLING = 1,///< T1 <= Temp < T2: Flaps 0°-90° based on speed & delta, Pump OFF
+    STATE_ACTIVE_FLUID_LOOP = 2,   ///< T2 <= Temp < T_CRIT: Pump ON, Flaps modulated, PID PWM 0-100%
+    STATE_SYSTEM_FAULT = 3         ///< Temp >= T_CRIT or sensor fault: Kill PWM to 0%, Flaps 90° fail-safe
 };
 
-// =============================================================================
-// 3. PUBLIC API DECLARATIONS
-// =============================================================================
+/**
+ * @brief Comprehensive system status telemetry snapshot
+ */
+struct ThermalSystemSnapshot {
+    uint32_t timestamp_ms;
+    SystemState state;
+    float temp_raw;
+    float temp_filtered;
+    float setpoint;
+    float vehicle_speed_kmh;
+    float flap_angle_deg;
+    bool pump_active;
+    float pwm_duty_pct;
+    PidTerms pid;
+    const char* fault_message;
+    float aux_power_saved_kw;
+};
 
 /**
- * @brief Initializes GPIOs, configures ADC hardware resolution/attenuation,
- *        and primes the moving average filter buffers.
+ * @brief Production Deterministic State Machine Class
  */
-void stateMachineInit();
+class ThermalStateMachine {
+public:
+    ThermalStateMachine();
 
-/**
- * @brief Master non-blocking tick function. Must be called in every loop() pass.
- *        Executes sensor sampling, state transitions, and safety checks.
- */
-void stateMachineRun();
+    /**
+     * @brief Hardware peripheral and sub-module initialization
+     */
+    void init();
 
-/**
- * @brief Retrieves the rock-solid, filtered battery charge percentage.
- * @return Battery percentage clamped strictly between 0 and 100.
- */
-int getFilteredBatteryPercent();
+    /**
+     * @brief Master non-blocking deterministic step called at CONTROL_LOOP_INTERVAL_MS
+     * @param rawTemp Latest raw temperature reading from sensor ADC (°C)
+     * @param vehicleSpeedKmh Current vehicle road speed (km/h)
+     * @param dt_seconds Elapsed time delta in seconds
+     */
+    void update(float rawTemp, float vehicleSpeedKmh, float dt_seconds);
 
-/**
- * @brief Retrieves the smoothed raw ADC 12-bit value (0-4095) for diagnostic calibration.
- * @return Smoothed raw ADC value.
- */
-int getRawBatteryAverage();
+    /**
+     * @brief Injects an intentional test fault (HIL testing / founder demo)
+     * @param reason Text description of fault
+     */
+    void injectFault(const char* reason);
 
-/**
- * @brief Returns the current operational state of the system.
- * @return SystemState enum value.
- */
-SystemState getCurrentState();
+    /**
+     * @brief Resets latched system faults if conditions are safe
+     * @return true if fault was cleared, false if unsafe to clear
+     */
+    bool resetFault();
 
-/**
- * @brief Helper utility to convert SystemState enum to a human-readable C-string.
- * @param state SystemState enum to inspect.
- * @return Constant string literal representing the state name.
- */
-const char* stateToString(SystemState state);
+    /**
+     * @brief Updates PID tuning gains dynamically
+     */
+    void setPidGains(float kp, float ki, float kd);
 
-/**
- * @brief Transitions the system into STATE_FAULT with an audit diagnostic reason.
- * @param faultReason Descriptive string logged to the diagnostic stream.
- */
-void triggerSystemFault(const char* faultReason = nullptr);
+    /**
+     * @brief Updates temperature setpoint
+     */
+    void setSetpoint(float setpoint);
+
+    // Telemetry and Status Getters
+    SystemState getState() const { return currentState_; }
+    const char* getStateName() const;
+    ThermalSystemSnapshot getSnapshot(uint32_t timestamp_ms) const;
+    SensorFilter& getFilter() { return filter_; }
+    PidController& getPid() { return pid_; }
+
+private:
+    void executeIdleMode(float temp, float speed, float dt);
+    void executePassiveAero(float temp, float speed, float dt);
+    void executeActiveFluidLoop(float temp, float speed, float dt);
+    void executeSystemFault();
+
+    void applyHardwareActuation(float flapAngle, bool pumpState, float pwmDuty);
+
+    SystemState currentState_;
+    SensorFilter filter_;
+    PidController pid_;
+
+    float currentSpeedKmh_;
+    float flapAngleDeg_;
+    bool pumpActive_;
+    float pwmDutyPct_;
+    float auxPowerSavedKw_;
+    const char* faultMessage_;
+    bool manualFaultInjected_;
+};

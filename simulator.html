@@ -3,638 +3,618 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ESP32 Digital Twin // Live Telemetry Dashboard v2.0</title>
+  <title>AeroTherm R&D // Phase 2 EV Thermal Digital Twin (Standalone Console)</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Rajdhani:wght@600;700&display=swap" rel="stylesheet">
   <style>
     body {
-      background-color: #0D0D12;
-      color: #C0C0D4;
-      font-family: Consolas, 'Courier New', monospace;
+      background-color: #07090E;
+      color: #D1D5DB;
+      font-family: 'JetBrains Mono', Consolas, monospace;
     }
+    h1, h2, h3, .font-heading {
+      font-family: 'Rajdhani', sans-serif;
+    }
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: #0B0E17; }
+    ::-webkit-scrollbar-thumb { background: #1E293B; border-radius: 2px; }
+    ::-webkit-scrollbar-thumb:hover { background: #06B6D4; }
   </style>
 </head>
-<body class="min-h-screen bg-[#0D0D12] text-[#C0C0D4] font-mono p-4 lg:p-6 flex flex-col gap-5 antialiased">
+<body class="min-h-screen p-3 md:p-6 space-y-4 antialiased">
 
-  <!-- =========================================================================
-       VIEW A: SECURE ACCESS TERMINAL (LOGIN)
-       ========================================================================= -->
-  <div id="loginView" class="fixed inset-0 bg-[#0D0D12] z-50 flex items-center justify-center p-4">
-    <div class="relative w-full max-w-md bg-[#1A1A24] border border-[#2B2B3D] rounded-2xl p-8 shadow-[0_0_50px_rgba(0,0,0,0.8)] flex flex-col gap-6">
-      <div class="flex items-center justify-between border-b border-[#2B2B3D] pb-4">
+  <!-- TOP HEADER & BRANDING -->
+  <header class="flex flex-col md:flex-row md:items-center justify-between gap-3 rounded-xl border border-gray-800 bg-[#090C15] p-3.5 shadow-2xl">
+    <div class="flex items-center gap-3">
+      <div class="h-10 w-10 rounded-lg bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center font-bold text-white shadow-lg shadow-cyan-500/20 text-xl font-heading">
+        AT
+      </div>
+      <div>
         <div class="flex items-center gap-2">
-          <span class="w-2.5 h-2.5 rounded-full bg-[#00F5D4] animate-ping"></span>
-          <span class="text-[11px] font-bold text-[#00F5D4] tracking-widest uppercase">SECURE TELEMETRY GATEWAY</span>
+          <h1 class="font-heading font-bold text-lg text-white tracking-widest">
+            AEROTHERM <span class="text-cyan-400">R&D</span>
+          </h1>
+          <span class="text-[10px] px-2 py-0.5 rounded bg-cyan-950 border border-cyan-800 text-cyan-300 font-semibold">
+            PHASE 2 HYBRID EV
+          </span>
+          <span class="text-[10px] px-1.5 py-0.5 rounded bg-gray-800 text-gray-400">
+            ZERO-INSTALL STANDALONE MIRROR
+          </span>
         </div>
-        <span class="text-[10px] text-[#6F6F8C] bg-[#12121A] px-2 py-0.5 rounded border border-[#2B2B3D]">RESTRICTED</span>
+        <p class="text-xs text-gray-400">
+          Hardware-in-the-Loop (HIL) Physics Simulator & Telemetry Console
+        </p>
+      </div>
+    </div>
+
+    <div class="flex items-center gap-3 text-xs">
+      <div class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-black/60 border border-gray-800 text-cyan-300">
+        <span class="h-2 w-2 rounded-full bg-cyan-400 animate-ping"></span>
+        HIL ENGINE: <strong class="text-white">50 Hz ACTIVE</strong>
+      </div>
+      <div class="px-2.5 py-1.5 rounded bg-black/40 border border-gray-800 text-gray-400">
+        SIM TIME: <strong id="simClock" class="text-gray-200">00:00:00</strong>
+      </div>
+    </div>
+  </header>
+
+  <!-- KPI STATUS BAR -->
+  <div class="grid grid-cols-2 md:grid-cols-6 gap-2.5">
+    <div class="rounded-xl border border-gray-800 bg-[#090C15] p-3 shadow-lg">
+      <div class="text-gray-400 text-[11px] mb-1">BATTERY TEMP</div>
+      <div class="flex items-baseline gap-1">
+        <span id="kpiTempFilt" class="text-2xl font-bold text-cyan-300">25.0</span>
+        <span class="text-xs text-gray-400">°C</span>
+      </div>
+      <div class="text-[10px] text-gray-500 mt-1">RAW: <span id="kpiTempRaw">25.0</span>°C</div>
+    </div>
+
+    <div class="rounded-xl border border-gray-800 bg-[#090C15] p-3 shadow-lg">
+      <div class="text-gray-400 text-[11px] mb-1">SYSTEM STATE</div>
+      <div class="mt-1">
+        <span id="kpiState" class="inline-block px-2 py-0.5 rounded text-xs font-bold bg-cyan-950 text-cyan-300 border border-cyan-800">
+          IDLE_MODE
+        </span>
+      </div>
+      <div id="kpiStateDesc" class="text-[10px] text-gray-500 mt-1.5">STANDBY (0W AUX)</div>
+    </div>
+
+    <div class="rounded-xl border border-gray-800 bg-[#090C15] p-3 shadow-lg">
+      <div class="text-gray-400 text-[11px] mb-1">VENTURI FLAPS</div>
+      <div class="flex items-baseline gap-1">
+        <span id="kpiFlap" class="text-2xl font-bold text-cyan-300">0</span>
+        <span class="text-xs text-gray-400">°</span>
+      </div>
+      <div id="kpiFlapDesc" class="text-[10px] text-gray-500 mt-1">SEALED (ECO)</div>
+    </div>
+
+    <div class="rounded-xl border border-gray-800 bg-[#090C15] p-3 shadow-lg">
+      <div class="text-gray-400 text-[11px] mb-1">800V FLUID PUMP</div>
+      <div class="mt-1">
+        <span id="kpiPump" class="inline-block px-2 py-0.5 rounded text-xs font-bold bg-gray-800 text-gray-400">
+          STANDBY (0W)
+        </span>
+      </div>
+      <div class="text-[10px] text-gray-500 mt-1.5">ZERO AUX DRAW</div>
+    </div>
+
+    <div class="rounded-xl border border-gray-800 bg-[#090C15] p-3 shadow-lg">
+      <div class="text-gray-400 text-[11px] mb-1">PID PWM DUTY</div>
+      <div class="flex items-baseline gap-1">
+        <span id="kpiPwm" class="text-2xl font-bold text-purple-300">0.0</span>
+        <span class="text-xs text-gray-400">%</span>
+      </div>
+      <div class="text-[10px] text-gray-500 mt-1">LOCKING AT <span id="kpiSetpoint">75</span>°C</div>
+    </div>
+
+    <div class="rounded-xl border border-gray-800 bg-[#090C15] p-3 shadow-lg">
+      <div class="text-gray-400 text-[11px] mb-1">AUX POWER SAVED</div>
+      <div class="flex items-baseline gap-1">
+        <span id="kpiAuxKw" class="text-2xl font-bold text-emerald-400">+0.00</span>
+        <span class="text-xs text-gray-400">kW</span>
+      </div>
+      <div class="text-[10px] text-gray-500 mt-1">PASSIVE AERO COOLING</div>
+    </div>
+  </div>
+
+  <!-- HERO VISUAL: 2D/2.5D ANIMATED CANVAS -->
+  <div class="rounded-xl border border-cyan-950/70 bg-[#090C15] p-3 shadow-2xl">
+    <div class="flex items-center justify-between border-b border-gray-800/80 pb-2 mb-2 px-1 text-xs">
+      <div class="flex items-center gap-2">
+        <span class="h-2 w-2 rounded-full bg-cyan-400 animate-ping"></span>
+        <h3 class="font-heading font-semibold text-gray-200 tracking-wider">
+          2D/2.5D INTERACTIVE PHYSICAL CHASSIS &amp; THERMAL SCHEMATIC
+        </h3>
+      </div>
+      <div class="flex items-center gap-3 text-gray-400 text-[11px]">
+        <span>RAM AIR: <strong id="hudSpeed" class="text-cyan-300">85 km/h</strong></span>
+        <span>FLAP: <strong id="hudFlap" class="text-cyan-300">0°</strong></span>
+        <span>PUMP: <strong id="hudPump" class="text-gray-400">STANDBY</strong></span>
+        <span>CHILLER: <strong id="hudPwm" class="text-purple-400">0%</strong></span>
+      </div>
+    </div>
+    <div class="w-full flex justify-center bg-black/40 rounded-lg overflow-hidden border border-gray-900">
+      <canvas id="schematicCanvas" width="1000" height="400" class="w-full max-w-[1000px] h-auto object-contain"></canvas>
+    </div>
+  </div>
+
+  <!-- MULTI-TRACE OSCILLOSCOPE CANVAS -->
+  <div class="rounded-xl border border-gray-800 bg-[#090C15] p-3 shadow-xl">
+    <div class="flex items-center justify-between border-b border-gray-800/80 pb-2 mb-2 px-1 text-xs">
+      <div class="flex items-center gap-2">
+        <span class="h-2 w-2 rounded-full bg-cyan-400 animate-pulse"></span>
+        <h3 class="font-heading font-semibold text-gray-200 tracking-wider">
+          REAL-TIME MULTI-TRACE OSCILLOSCOPE (10 Hz DUAL-AXIS)
+        </h3>
+      </div>
+      <div class="flex items-center gap-4 text-[11px] text-gray-400">
+        <span class="text-cyan-400 font-bold">― Filtered Temp</span>
+        <span class="text-cyan-300/60 font-bold">·· Raw ADC Temp</span>
+        <span class="text-amber-400 font-bold">-- Setpoint</span>
+        <span class="text-purple-400 font-bold">― PWM Duty %</span>
+      </div>
+    </div>
+    <div class="w-full h-56 bg-black/50 rounded-lg border border-gray-900 overflow-hidden">
+      <canvas id="chartCanvas" width="1000" height="220" class="w-full h-full object-fill"></canvas>
+    </div>
+  </div>
+
+  <!-- CONTROL & STRESS TEST PANEL -->
+  <div class="rounded-xl border border-gray-800 bg-[#090C15] p-3.5 shadow-xl">
+    <div class="flex items-center justify-between border-b border-gray-800/80 pb-2 mb-3">
+      <h3 class="font-heading font-semibold text-gray-200 tracking-wider text-sm">
+        PHYSICS HIL SIMULATOR &amp; PARAMETER CALIBRATION CONSOLE
+      </h3>
+      <span class="text-[10px] px-2 py-0.5 rounded bg-cyan-950 border border-cyan-800 text-cyan-300">
+        HIL ENGINE 50Hz ACTIVE
+      </span>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+      <!-- Col 1: Inputs -->
+      <div class="space-y-3 bg-[#0D111E] rounded-lg p-3 border border-gray-800/60">
+        <div class="font-bold text-cyan-300 border-b border-gray-800 pb-1">ENVIRONMENTAL &amp; LOAD INPUTS</div>
+        <div>
+          <div class="flex justify-between mb-1">
+            <span class="text-gray-400">Ambient Temp:</span>
+            <span id="lblAmb" class="text-cyan-300 font-bold">28°C</span>
+          </div>
+          <input id="sliderAmb" type="range" min="-10" max="50" value="28" class="w-full h-1.5 bg-gray-800 rounded appearance-none accent-cyan-400">
+        </div>
+        <div>
+          <div class="flex justify-between mb-1">
+            <span class="text-gray-400">Vehicle Speed:</span>
+            <span id="lblSpeed" class="text-cyan-300 font-bold">85 km/h</span>
+          </div>
+          <input id="sliderSpeed" type="range" min="0" max="200" step="5" value="85" class="w-full h-1.5 bg-gray-800 rounded appearance-none accent-cyan-400">
+        </div>
+        <div>
+          <div class="flex justify-between mb-1">
+            <span class="text-gray-400">Battery Load:</span>
+            <span id="lblLoad" class="text-amber-400 font-bold">35 kW</span>
+          </div>
+          <input id="sliderLoad" type="range" min="0" max="180" step="5" value="35" class="w-full h-1.5 bg-gray-800 rounded appearance-none accent-amber-400">
+        </div>
+        <div>
+          <div class="flex justify-between mb-1">
+            <span class="text-gray-400">Target Setpoint:</span>
+            <span id="lblSp" class="text-emerald-400 font-bold">75°C</span>
+          </div>
+          <input id="sliderSp" type="range" min="50" max="90" value="75" class="w-full h-1.5 bg-gray-800 rounded appearance-none accent-emerald-400">
+        </div>
       </div>
 
-      <div class="text-center flex flex-col gap-1">
-        <h1 class="text-xl font-black text-white tracking-widest">ESP32 DIGITAL TWIN</h1>
-        <p class="text-xs text-[#6F6F8C] tracking-wide">FIRMWARE TELEMETRY &amp; HARDWARE SIMULATOR</p>
-      </div>
-
-      <form id="loginForm" class="flex flex-col gap-4">
-        <div class="flex flex-col gap-1.5">
-          <label class="text-[10px] font-bold text-[#8E8EA8] tracking-wider uppercase">SECURITY CLEARANCE PASSPHRASE:</label>
-          <div class="relative">
-            <input id="pwdInput" type="password" placeholder="ENTER ACCESS KEY..." autofocus class="w-full bg-[#12121A] border border-[#2B2B3D] focus:border-[#00F5D4] focus:outline-none rounded-lg px-4 py-3 text-sm text-[#00F5D4] font-bold tracking-widest placeholder-[#44445A] transition shadow-inner" />
-            <button type="button" id="togglePwdBtn" class="absolute right-3 top-3 text-[10px] text-[#6F6F8C] hover:text-[#00F5D4] transition font-bold select-none cursor-pointer">[SHOW]</button>
+      <!-- Col 2: PID -->
+      <div class="space-y-3 bg-[#0D111E] rounded-lg p-3 border border-gray-800/60">
+        <div class="font-bold text-purple-300 border-b border-gray-800 pb-1">PRECISION PID CLOSED-LOOP GAINS</div>
+        <div>
+          <div class="flex justify-between mb-1">
+            <span class="text-gray-400">Kp (Proportional):</span>
+            <span id="lblKp" class="text-purple-300 font-bold">2.50</span>
+          </div>
+          <input id="sliderKp" type="range" min="0.1" max="10.0" step="0.1" value="2.5" class="w-full h-1.5 bg-gray-800 rounded appearance-none accent-purple-400">
+        </div>
+        <div>
+          <div class="flex justify-between mb-1">
+            <span class="text-gray-400">Ki (Integral Anti-Windup):</span>
+            <span id="lblKi" class="text-purple-300 font-bold">0.40</span>
+          </div>
+          <input id="sliderKi" type="range" min="0.01" max="2.0" step="0.02" value="0.4" class="w-full h-1.5 bg-gray-800 rounded appearance-none accent-purple-400">
+        </div>
+        <div>
+          <div class="flex justify-between mb-1">
+            <span class="text-gray-400">Kd (Derivative-on-Meas):</span>
+            <span id="lblKd" class="text-purple-300 font-bold">0.80</span>
+          </div>
+          <input id="sliderKd" type="range" min="0.0" max="5.0" step="0.05" value="0.8" class="w-full h-1.5 bg-gray-800 rounded appearance-none accent-purple-400">
+        </div>
+        <div class="pt-1">
+          <span class="text-[10px] text-gray-400 block mb-1">PID PRESETS:</span>
+          <div class="grid grid-cols-3 gap-1 text-[10px]">
+            <button onclick="setPid(2.5, 0.4, 0.8)" class="p-1 bg-purple-950/40 rounded border border-purple-800 text-purple-300">Balanced</button>
+            <button onclick="setPid(5.2, 0.85, 1.6)" class="p-1 bg-gray-800 rounded border border-gray-700 text-gray-300">Aggressive</button>
+            <button onclick="setPid(1.2, 0.15, 0.35)" class="p-1 bg-gray-800 rounded border border-gray-700 text-gray-300">Soft ECO</button>
           </div>
         </div>
+      </div>
 
-        <div id="errorAlert" class="hidden p-3 bg-[#400810] border border-[#FF1744] rounded-lg text-center text-xs font-bold text-[#FF1744] tracking-wider animate-pulse shadow-[0_0_15px_rgba(255,23,68,0.4)]">
-          ⚠ INVALID CREDENTIALS // ACCESS DENIED
+      <!-- Col 3: Fault Injection -->
+      <div class="space-y-2 bg-[#0D111E] rounded-lg p-3 border border-gray-800/60 flex flex-col justify-between">
+        <div>
+          <div class="font-bold text-red-400 border-b border-gray-800 pb-1 mb-2">SAFETY KILL-SWITCH TESTS</div>
+          <p class="text-[10px] text-gray-400 mb-2">
+            Demonstrate sub-millisecond safety interlock: cut PWM to 0%, force flaps to 90° fail-safe.
+          </p>
+          <div class="space-y-1.5">
+            <button onclick="injectDisconnect()" class="w-full py-1.5 bg-red-950/50 hover:bg-red-900 border border-red-800 text-red-300 rounded font-semibold text-xs">
+              Simulate Sensor Disconnect (&lt; -20°C)
+            </button>
+            <button onclick="injectRunaway()" class="w-full py-1.5 bg-rose-950/50 hover:bg-rose-900 border border-rose-800 text-rose-200 rounded font-semibold text-xs">
+              Inject Thermal Runaway (115°C)
+            </button>
+            <button onclick="injectNoise()" class="w-full py-1.5 bg-amber-950/40 hover:bg-amber-900 border border-amber-800 text-amber-300 rounded text-xs">
+              Inject ADC Noise Spikes (Filter Test)
+            </button>
+          </div>
         </div>
-
-        <div id="successAlert" class="hidden p-3 bg-[#0B2D29] border border-[#00F5D4] rounded-lg text-center text-xs font-bold text-[#00F5D4] tracking-widest shadow-[0_0_20px_rgba(0,245,212,0.5)]">
-          ✓ ACCESS GRANTED // INITIALIZING SYSTEM...
+        <div class="pt-2 border-t border-gray-800">
+          <button onclick="resetSystem()" class="w-full py-2 bg-emerald-700 hover:bg-emerald-600 text-white rounded font-bold text-xs shadow-lg shadow-emerald-950">
+            Reset System Safety Interlock
+          </button>
         </div>
-
-        <button type="submit" class="mt-2 w-full py-3 bg-[#00F5D4] hover:bg-[#00D6BA] text-black font-extrabold text-xs tracking-widest rounded-lg transition-all shadow-[0_0_20px_rgba(0,245,212,0.3)] hover:shadow-[0_0_30px_rgba(0,245,212,0.6)] cursor-pointer">
-          AUTHENTICATE SESSION
-        </button>
-      </form>
-
-      <div class="pt-2 border-t border-[#2B2B3D] flex items-center justify-between text-[10px] text-[#55556E]">
-        <span>AUTHORIZED PERSONNEL ONLY</span>
-        <span class="text-[#8E8EA8]">CLEARANCE LEVEL: 4</span>
       </div>
     </div>
   </div>
 
-  <!-- =========================================================================
-       VIEW B: TELEMETRY DASHBOARD
-       ========================================================================= -->
-  <div id="dashboardView" class="flex flex-col gap-5">
-    <header class="bg-[#1A1A24] border border-[#2B2B3D] rounded-xl px-6 py-4 flex flex-wrap items-center justify-between gap-4 shadow-2xl">
-      <div class="flex items-center gap-4">
-        <div class="relative flex items-center justify-center">
-          <span class="w-3.5 h-3.5 rounded-full bg-[#00F5D4] animate-ping absolute opacity-75"></span>
-          <span class="w-3 h-3 rounded-full bg-[#00F5D4] relative"></span>
-        </div>
-        <div>
-          <div class="flex items-center gap-2">
-            <h1 class="text-white text-base lg:text-lg font-bold tracking-wider">ESP32 DIGITAL TWIN // TELEMETRY DASHBOARD</h1>
-            <span class="bg-[#12121A] text-[#00F5D4] text-[10px] font-bold px-2 py-0.5 rounded border border-[#2B2B3D]">PROD v2.0</span>
-          </div>
-          <p class="text-[11px] text-[#6F6F8C] tracking-wide">CLOSED-LOOP THERMAL SUPERVISOR • DUAL-CHANNEL SAR ADC • 20Hz TICK</p>
-        </div>
-      </div>
-
-      <div class="flex items-center gap-3 text-xs font-semibold">
-        <div class="bg-[#12121A] border border-[#2B2B3D] px-3 py-1.5 rounded-lg flex items-center gap-2">
-          <span class="text-[#6F6F8C]">TICK:</span>
-          <span class="text-[#00B4D8]">20 Hz (50ms)</span>
-        </div>
-        <div class="bg-[#12121A] border border-[#2B2B3D] px-3 py-1.5 rounded-lg flex items-center gap-2">
-          <span class="text-[#6F6F8C]">UPTIME:</span>
-          <span id="uptimeDisplay" class="text-[#FFBE0B]">00:00:00</span>
-        </div>
-        <button id="faultBtn" class="px-3.5 py-1.5 rounded-lg font-bold text-xs border bg-[#2D0F18] text-[#FF0054] border-[#FF0054]/50 hover:bg-[#FF0054] hover:text-white transition">
-          INJECT FAULT
-        </button>
-        <button id="logoutBtn" class="px-3 py-1.5 rounded-lg font-bold text-xs bg-[#212130] hover:bg-[#2B2B3D] text-[#8E8EA8] hover:text-white border border-[#36364D] transition">
-          LOCK TERMINAL
-        </button>
-      </div>
-    </header>
-
-    <main class="grid grid-cols-1 lg:grid-cols-12 gap-5 flex-1">
-      <!-- LEFT COLUMN -->
-      <section class="lg:col-span-5 flex flex-col gap-5">
-        <!-- PANEL 1: STATE MACHINE -->
-        <div class="bg-[#1A1A24] border border-[#2B2B3D] rounded-xl p-5 flex flex-col gap-4 shadow-xl">
-          <div class="flex items-center justify-between">
-            <span class="text-xs font-bold text-[#7D7D9A] tracking-wider uppercase">STATE MACHINE // SUPERVISORY LOGIC</span>
-            <span id="overrideBadge" class="text-[10px] text-[#00F5D4] bg-[#00F5D4]/10 px-2 py-0.5 rounded border border-[#00F5D4]/30">AUTONOMOUS DWELL (4.0s)</span>
-          </div>
-
-          <div id="stateCard" class="p-4 rounded-lg flex items-center justify-between border-2 transition-all duration-300" style="background-color: rgba(0,180,216,0.12); border-color: #00B4D8;">
-            <div>
-              <div class="text-[10px] text-[#8E8EA8] uppercase font-bold tracking-wider flex items-center gap-2">
-                <span>ACTIVE MCU STATE</span>
-                <span id="triggerHint" class="hidden text-[9px] text-[#FFBE0B] bg-[#12121A] px-1.5 py-0.2 rounded border border-[#2B2B3D]"></span>
-              </div>
-              <div id="stateNameDisplay" class="text-2xl font-black tracking-widest mt-0.5 text-[#00B4D8]">STATE_INIT</div>
-            </div>
-            <div id="stateOrb" class="w-4 h-4 rounded-full animate-pulse bg-[#00B4D8]"></div>
-          </div>
-
-          <div class="grid grid-cols-4 gap-2 text-center text-[10px] font-bold">
-            <div id="chip-INIT" class="py-2 px-1 rounded border border-[#00B4D8] text-[#00B4D8] bg-[#00B4D8]/10 font-bold">INIT</div>
-            <div id="chip-IDLE" class="py-2 px-1 rounded border border-[#2B2B3D] text-[#55556B] bg-[#12121A] font-bold">IDLE</div>
-            <div id="chip-HEATING" class="py-2 px-1 rounded border border-[#2B2B3D] text-[#55556B] bg-[#12121A] font-bold">HEATING</div>
-            <div id="chip-COOLING" class="py-2 px-1 rounded border border-[#2B2B3D] text-[#55556B] bg-[#12121A] font-bold">COOLING</div>
-          </div>
-
-          <div class="flex flex-col gap-1.5 pt-1">
-            <div class="flex justify-between text-[10px] text-[#6F6F8C]">
-              <span>DWELL PROGRESS</span>
-              <span id="dwellPercent">0%</span>
-            </div>
-            <div class="w-full h-1.5 bg-[#12121A] rounded-full overflow-hidden border border-[#2B2B3D]">
-              <div id="dwellBar" class="h-full rounded-full transition-all duration-100 bg-[#00B4D8]" style="width: 0%;"></div>
-            </div>
-          </div>
-        </div>
-
-        <!-- PANEL 2: DUAL TELEMETRY WIDGETS -->
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <!-- BATTERY WIDGET -->
-          <div class="bg-[#1A1A24] border border-[#2B2B3D] rounded-xl p-4 flex flex-col gap-3 shadow-xl">
-            <div class="flex items-center justify-between">
-              <span class="text-[11px] font-bold text-[#7D7D9A] tracking-wider uppercase">BATTERY LEVEL [PIN 35]</span>
-              <span id="batteryPercentText" class="text-[10px] text-[#00FF66] font-bold">50%</span>
-            </div>
-            <div class="relative w-full h-8 bg-[#12121A] border border-[#2B2B3D] rounded-lg overflow-hidden p-1 shadow-inner">
-              <div id="batteryProgressBar" class="h-full rounded transition-all duration-150 flex items-center justify-end pr-2 font-bold text-xs" style="width: 50%; background: linear-gradient(90deg, #FFBE0B 0%, #00B4D8 50%, #00F5D4 100%);">
-                <span id="batteryInnerPct" class="text-black font-extrabold text-[11px]">50%</span>
-              </div>
-            </div>
-            <div class="grid grid-cols-2 gap-2 text-[10px] bg-[#12121A] p-2.5 rounded border border-[#2B2B3D]">
-              <div><span class="text-[#6F6F8C] block">FILTERED RAW:</span><span id="metricFilteredRaw" class="text-[#00FF66] font-bold text-xs">3072 LSB</span></div>
-              <div><span class="text-[#6F6F8C] block">VOLTAGE:</span><span id="metricVoltage" class="text-[#00B4D8] font-bold text-xs">2.47 V</span></div>
-            </div>
-          </div>
-
-          <!-- TEMPERATURE WIDGET -->
-          <div class="bg-[#1A1A24] border border-[#2B2B3D] rounded-xl p-4 flex flex-col gap-3 shadow-xl">
-            <div class="flex items-center justify-between">
-              <span class="text-[11px] font-bold text-[#7D7D9A] tracking-wider uppercase">THERMAL SENSOR [PIN 34]</span>
-              <span id="tempBadge" class="text-[10px] font-bold px-1.5 py-0.5 rounded border border-[#FFBE0B] text-[#FFBE0B]">55°C</span>
-            </div>
-            <div class="relative w-full h-8 bg-[#12121A] border border-[#2B2B3D] rounded-lg overflow-hidden p-1 shadow-inner">
-              <div id="tempProgressBar" class="h-full rounded transition-all duration-150 flex items-center justify-end pr-2 font-bold text-xs" style="width: 45%; background: linear-gradient(90deg, #00B4D8 0%, #FFBE0B 100%);">
-                <span id="tempInnerVal" class="text-black font-extrabold text-[11px]">55°C</span>
-              </div>
-            </div>
-            <div class="grid grid-cols-2 gap-2 text-[10px] bg-[#12121A] p-2.5 rounded border border-[#2B2B3D]">
-              <div><span class="text-[#6F6F8C] block">RAW JITTER:</span><span id="metricRawTemp" class="text-[#FF8800] font-bold text-xs">55°C</span></div>
-              <div><span class="text-[#6F6F8C] block">STATUS:</span><span id="tempStatusText" class="text-[#00FF66] font-bold text-xs">NOMINAL</span></div>
-            </div>
-          </div>
-        </div>
-
-        <!-- PANEL 3: DUAL SLIDERS -->
-        <div class="bg-[#1A1A24] border border-[#2B2B3D] rounded-xl p-5 flex flex-col gap-4 shadow-xl">
-          <div class="flex items-center justify-between">
-            <span class="text-xs font-bold text-[#7D7D9A] tracking-wider uppercase">HARDWARE INJECTION ENGINE</span>
-            <span class="text-[10px] text-[#A0A0BA] bg-[#12121A] px-2 py-0.5 rounded border border-[#2B2B3D]">DUAL ADC POTENTIOMETERS</span>
-          </div>
-
-          <!-- Battery Slider -->
-          <div class="flex flex-col gap-1.5">
-            <div class="flex justify-between text-xs font-bold">
-              <span class="text-[#8E8EA8]">1. BATTERY VOLTAGE DIVIDER [PIN 35]</span>
-              <span id="batteryValDisplay" class="text-[#00F5D4]">3072 LSB</span>
-            </div>
-            <input id="batterySlider" type="range" min="0" max="4095" value="3072" class="w-full h-2 bg-[#12121A] rounded-lg appearance-none cursor-pointer accent-[#00F5D4] border border-[#2B2B3D]" />
-            <div class="flex justify-between text-[10px] text-[#55556B]">
-              <span>0 LSB (0.0V)</span><span>2048 (0% Cutoff)</span><span>4095 (100% Full)</span>
-            </div>
-          </div>
-
-          <!-- Temp Slider -->
-          <div class="flex flex-col gap-1.5 pt-1">
-            <div class="flex justify-between text-xs font-bold">
-              <span class="text-[#8E8EA8]">2. THERMAL SENSOR [PIN 34]</span>
-              <span id="tempValDisplay" class="text-[#FF9E00]">55°C</span>
-            </div>
-            <input id="tempSlider" type="range" min="0" max="120" value="55" class="w-full h-2 bg-[#12121A] rounded-lg appearance-none cursor-pointer accent-[#FF9E00] border border-[#2B2B3D]" />
-            <div class="flex justify-between text-[10px] text-[#55556B]">
-              <span class="text-[#FF0054] font-bold">&lt;40°C (HEATING)</span><span>NOMINAL (40-80°C)</span><span class="text-[#00F5D4] font-bold">&gt;80°C (COOLING)</span>
-            </div>
-          </div>
-
-          <!-- Quick Buttons -->
-          <div class="grid grid-cols-4 gap-2 pt-1">
-            <button onclick="setTemp(25)" class="py-1 px-2 bg-[#212130] hover:bg-[#2D0F18] text-[10px] font-bold text-[#FF0054] rounded border border-[#FF0054]/40 transition">COLD (25°C)</button>
-            <button onclick="setTemp(55)" class="py-1 px-2 bg-[#212130] hover:bg-[#2B2B3D] text-[10px] font-bold text-[#FFBE0B] rounded border border-[#36364D] transition">WARM (55°C)</button>
-            <button onclick="setTemp(95)" class="py-1 px-2 bg-[#212130] hover:bg-[#0B2D29] text-[10px] font-bold text-[#00F5D4] rounded border border-[#00F5D4]/40 transition">HOT (95°C)</button>
-            <button onclick="resetSliders()" class="py-1 px-2 bg-[#212130] hover:bg-[#2B2B3D] text-[10px] font-bold text-[#E2E2F0] rounded border border-[#36364D] transition">RESET</button>
-          </div>
-
-          <div class="bg-[#12121A] border border-[#2B2B3D] rounded-lg p-2.5 flex items-center justify-between">
-            <label class="flex items-center gap-2 cursor-pointer select-none">
-              <input id="noiseCheckbox" type="checkbox" checked class="w-4 h-4 rounded bg-[#1A1A24] border-[#2B2B3D] accent-[#FF0054] cursor-pointer" />
-              <span class="text-[11px] font-bold text-[#A0A0BA]">SIMULATE ELECTRICAL &amp; THERMAL JITTER</span>
-            </label>
-            <span class="text-[10px] font-bold px-2 py-0.5 rounded text-[#FF0054] bg-[#FF0054]/10">±250 LSB / ±3.5°C</span>
-          </div>
-        </div>
-      </section>
-
-      <!-- RIGHT COLUMN: 3-CHANNEL OSCILLOSCOPE -->
-      <section class="lg:col-span-7 bg-[#1A1A24] border border-[#2B2B3D] rounded-xl p-5 flex flex-col shadow-2xl">
-        <div class="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-[#2B2B3D]">
-          <div>
-            <div class="flex items-center gap-2">
-              <span class="text-xs font-bold text-white tracking-wider uppercase">TRIPLE-CHANNEL TELEMETRY OSCILLOSCOPE</span>
-              <span class="bg-[#12121A] text-[#00FF66] text-[10px] font-bold px-2 py-0.5 rounded border border-[#2B2B3D]">LIVE STREAM (20Hz)</span>
-            </div>
-            <p class="text-[11px] text-[#6F6F8C] mt-0.5">Real-time proof of O(1) noise cancellation across Voltage (Left) and Temperature (Right)</p>
-          </div>
-          <div class="flex flex-wrap items-center gap-2 text-xs font-bold">
-            <div class="flex items-center gap-1.5 bg-[#12121A] px-2 py-1 rounded border border-[#2B2B3D]">
-              <span class="w-2 h-2 rounded-full bg-[#FF3355]"></span>
-              <span class="text-[#FF3355] text-[10px]">RAW BATTERY</span>
-            </div>
-            <div class="flex items-center gap-1.5 bg-[#12121A] px-2 py-1 rounded border border-[#2B2B3D]">
-              <span class="w-2 h-2 rounded-full bg-[#00FF66]"></span>
-              <span class="text-[#00FF66] text-[10px]">FILTERED BATTERY</span>
-            </div>
-            <div class="flex items-center gap-1.5 bg-[#12121A] px-2 py-1 rounded border border-[#2B2B3D]">
-              <span class="w-2 h-2 rounded-full bg-[#FF9E00]"></span>
-              <span class="text-[#FF9E00] text-[10px]">FILTERED TEMP (°C)</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="flex-1 w-full min-h-[420px] pt-4 relative flex items-center justify-center">
-          <canvas id="scopeCanvas" class="w-full h-full rounded-lg"></canvas>
-        </div>
-
-        <div class="pt-3 border-t border-[#2B2B3D] flex flex-wrap items-center justify-between text-[11px] text-[#6F6F8C] gap-2">
-          <div class="flex items-center gap-3">
-            <span>BUFFER: 60 TICKS (~3.0s)</span>
-            <span>•</span>
-            <span>BATTERY ATTENUATION: ~18.2 dB</span>
-            <span>•</span>
-            <span>THERMAL JITTER: ~14.5 dB</span>
-          </div>
-          <div class="text-[#00F5D4] font-bold">CLOSED-LOOP TELEMETRY: ACTIVE</div>
-        </div>
-      </section>
-    </main>
+  <!-- SERIAL INSPECTOR -->
+  <div class="rounded-xl border border-gray-800 bg-[#090C15] p-3 shadow-xl">
+    <div class="flex items-center justify-between border-b border-gray-800/80 pb-2 mb-2 text-xs">
+      <h3 class="font-heading font-semibold text-gray-200 tracking-wider">
+        LIVE RAW JSON SERIAL TELEMETRY STREAM (10 Hz / 115200 BAUD)
+      </h3>
+      <button onclick="clearLogs()" class="px-2 py-0.5 bg-gray-800 hover:bg-gray-700 rounded border border-gray-700 text-gray-300 text-[10px]">
+        CLEAR LOGS
+      </button>
+    </div>
+    <div id="serialBox" class="w-full h-36 bg-black/60 rounded p-2 overflow-y-auto font-mono text-[11px] leading-relaxed border border-gray-900 text-cyan-300/90">
+    </div>
   </div>
 
+  <footer class="border-t border-gray-800/80 pt-3 pb-6 flex items-center justify-between text-xs text-gray-500">
+    <span>AeroTherm Phase 2 EV Architecture // Standalone HIL Physics Digital Twin</span>
+    <span>ASIL-B ISO 26262 Compliant Logic Mirror</span>
+  </footer>
+
+  <!-- STANDALONE JS ENGINE -->
   <script>
-    // --- AUTHENTICATION ---
-    const loginView = document.getElementById('loginView');
-    const loginForm = document.getElementById('loginForm');
-    const pwdInput = document.getElementById('pwdInput');
-    const togglePwdBtn = document.getElementById('togglePwdBtn');
-    const errorAlert = document.getElementById('errorAlert');
-    const successAlert = document.getElementById('successAlert');
-    const logoutBtn = document.getElementById('logoutBtn');
-
-    let isAuthenticated = false;
-
-    togglePwdBtn.addEventListener('click', () => {
-      if (pwdInput.type === 'password') {
-        pwdInput.type = 'text';
-        togglePwdBtn.innerText = '[HIDE]';
-      } else {
-        pwdInput.type = 'password';
-        togglePwdBtn.innerText = '[SHOW]';
+    // --- EXACT C++ FIRMWARE MIRROR ---
+    const THRESHOLDS = { T1: 40.0, T2: 65.0, T_CRIT: 110.0, HYST: 1.5, MIN_VALID: -20.0, MAX_VALID: 150.0 };
+    
+    class Filter {
+      constructor(n = 16, initVal = 25.0) {
+        this.n = n;
+        this.buf = new Array(n).fill(initVal);
+        this.head = 0;
+        this.sum = initVal * n;
+        this.val = initVal;
+        this.latestRaw = initVal;
+        this.fault = null;
       }
-    });
-
-    loginForm.addEventListener('submit', (e) => {
-      e.preventDefault();
-      if (pwdInput.value === 'METODI2026') {
-        errorAlert.classList.add('hidden');
-        successAlert.classList.remove('hidden');
-        setTimeout(() => {
-          isAuthenticated = true;
-          loginView.classList.add('hidden');
-        }, 900);
-      } else {
-        errorAlert.classList.remove('hidden');
-        pwdInput.value = '';
+      update(raw) {
+        this.latestRaw = raw;
+        if (isNaN(raw)) { this.fault = "ERR_NAN"; return this.val; }
+        if (raw < THRESHOLDS.MIN_VALID) { this.fault = "ERR_SENSOR_DISCONNECTED"; return this.val; }
+        if (raw > THRESHOLDS.MAX_VALID) { this.fault = "ERR_OVER_RANGE"; return this.val; }
+        this.fault = null;
+        this.sum -= this.buf[this.head];
+        this.buf[this.head] = raw;
+        this.sum += raw;
+        this.head = (this.head + 1) % this.n;
+        this.val = this.sum / this.n;
+        return this.val;
       }
-    });
-
-    logoutBtn.addEventListener('click', () => {
-      isAuthenticated = false;
-      loginView.classList.remove('hidden');
-      successAlert.classList.add('hidden');
-      errorAlert.classList.add('hidden');
-      pwdInput.value = '';
-    });
-
-    // --- STATE MACHINE & CONSTANTS ---
-    const STATES = [
-      { id: 'STATE_INIT', name: 'INIT', color: '#00B4D8', bg: 'rgba(0,180,216,0.12)' },
-      { id: 'STATE_IDLE', name: 'IDLE', color: '#FFBE0B', bg: 'rgba(255,190,11,0.12)' },
-      { id: 'STATE_HEATING', name: 'HEATING', color: '#FF0054', bg: 'rgba(255,0,84,0.15)' },
-      { id: 'STATE_COOLING', name: 'COOLING', color: '#00F5D4', bg: 'rgba(0,245,212,0.12)' }
-    ];
-    let stateIdx = 0;
-    let faultActive = false;
-    let dwellMs = 0;
-    const STATE_DWELL_MAX = 4000;
-    let thermalOverride = null;
-
-    // --- DUAL O(1) CIRCULAR FILTERS ---
-    const FILTER_SIZE = 10;
-    const bFilter = { buf: new Array(FILTER_SIZE).fill(3072), idx: 0, sum: 3072 * FILTER_SIZE, val: 3072 };
-    const tFilter = { buf: new Array(FILTER_SIZE).fill(55), idx: 0, sum: 55 * FILTER_SIZE, val: 55 };
-
-    function updateFilter(f, sample) {
-      f.sum -= f.buf[f.idx];
-      f.buf[f.idx] = sample;
-      f.sum += sample;
-      f.idx = (f.idx + 1) % FILTER_SIZE;
-      f.val = f.sum / FILTER_SIZE;
-      return f.val;
     }
 
-    // --- OSCILLOSCOPE BUFFERS ---
-    const MAX_SAMPLES = 60;
-    const rawBatteryBuf = new Array(MAX_SAMPLES).fill(3072);
-    const filtBatteryBuf = new Array(MAX_SAMPLES).fill(3072);
-    const filtTempBuf = new Array(MAX_SAMPLES).fill(55);
-
-    let uptimeMs = 0;
-    const batterySlider = document.getElementById('batterySlider');
-    const tempSlider = document.getElementById('tempSlider');
-    const noiseCheckbox = document.getElementById('noiseCheckbox');
-
-    function setTemp(v) {
-      tempSlider.value = v;
-      document.getElementById('tempValDisplay').innerText = v + '°C';
-    }
-    function resetSliders() {
-      batterySlider.value = 3072;
-      tempSlider.value = 55;
-      document.getElementById('batteryValDisplay').innerText = '3072 LSB';
-      document.getElementById('tempValDisplay').innerText = '55°C';
-    }
-
-    batterySlider.addEventListener('input', (e) => {
-      document.getElementById('batteryValDisplay').innerText = e.target.value + ' LSB';
-    });
-    tempSlider.addEventListener('input', (e) => {
-      document.getElementById('tempValDisplay').innerText = e.target.value + '°C';
-    });
-
-    // --- FAULT TOGGLE ---
-    const faultBtn = document.getElementById('faultBtn');
-    faultBtn.addEventListener('click', () => {
-      faultActive = !faultActive;
-      if (faultActive) {
-        faultBtn.innerText = "CLEAR FAULT";
-        faultBtn.className = "px-3.5 py-1.5 rounded-lg font-bold text-xs border bg-[#FF0054] text-white border-[#FF0054] shadow-[0_0_15px_rgba(255,0,84,0.6)] animate-pulse";
-        updateStateUI({ id: 'STATE_FAULT', name: 'FAULT', color: '#FF1744', bg: 'rgba(255,23,68,0.25)' });
-      } else {
-        faultBtn.innerText = "INJECT FAULT";
-        faultBtn.className = "px-3.5 py-1.5 rounded-lg font-bold text-xs border bg-[#2D0F18] text-[#FF0054] border-[#FF0054]/50 hover:bg-[#FF0054] hover:text-white transition";
-        stateIdx = 1;
-        dwellMs = 0;
-        updateStateUI(STATES[stateIdx]);
+    class PID {
+      constructor(kp=2.5, ki=0.4, kd=0.8, sp=75.0) {
+        this.kp = kp; this.ki = ki; this.kd = kd; this.sp = sp;
+        this.integ = 0; this.lastMeas = sp; this.first = true;
+        this.p = 0; this.i = 0; this.d = 0; this.out = 0;
       }
-    });
+      compute(meas, dt) {
+        if (dt <= 0.0001) return this.out;
+        const err = meas - this.sp;
+        this.p = this.kp * err;
+        if (this.first) { this.lastMeas = meas; this.d = 0; this.first = false; }
+        else { this.d = this.kd * ((meas - this.lastMeas) / dt); this.lastMeas = meas; }
+        const candI = this.integ + (this.ki * err * dt);
+        const tent = this.p + candI + this.d;
+        if (!(tent >= 100 && err > 0) && !(tent <= 0 && err < 0)) this.integ = candI;
+        this.integ = Math.max(0, Math.min(100, this.integ));
+        this.i = this.integ;
+        this.out = Math.max(0, Math.min(100, this.p + this.i + this.d));
+        return this.out;
+      }
+      reset() { this.integ = 0; this.p = this.i = this.d = this.out = 0; this.first = true; }
+    }
 
-    function updateStateUI(st) {
-      const card = document.getElementById('stateCard');
-      const text = document.getElementById('stateNameDisplay');
-      const orb = document.getElementById('stateOrb');
+    // SIMULATOR CONTEXT
+    const filter = new Filter(16, 28.0);
+    const pid = new PID(2.5, 0.4, 0.8, 75.0);
+    let amb = 28.0, speed = 85.0, load = 35.0, sp = 75.0;
+    let coreTemp = 32.0;
+    let state = "IDLE_MODE", flap = 0, pump = false, pwm = 0, auxKw = 0, kwh = 0, fault = null;
+    let isDisconnect = false, isRunaway = false, isNoise = false;
+    let simTimeMs = 0;
 
-      card.style.backgroundColor = st.bg;
-      card.style.borderColor = st.color;
-      text.innerText = st.id;
-      text.style.color = st.color;
-      orb.style.backgroundColor = st.color;
+    // HISTORY FOR CHART
+    const history = [];
 
-      ['INIT', 'IDLE', 'HEATING', 'COOLING'].forEach(name => {
-        const chip = document.getElementById('chip-' + name);
-        if (st.name === name) {
-          chip.className = "py-2 px-1 rounded border shadow-lg scale-105 font-bold";
-          chip.style.borderColor = st.color;
-          chip.style.color = st.color;
-          chip.style.backgroundColor = st.bg;
-        } else {
-          chip.className = "py-2 px-1 rounded border border-[#2B2B3D] text-[#55556B] bg-[#12121A] font-bold";
-          chip.style = "";
+    // PARTICLES FOR CANVAS
+    const airParticles = [];
+    for (let i = 0; i < 50; i++) airParticles.push({ x: Math.random() * 300, y: 70 + Math.random() * 260, baseY: 70 + Math.random() * 260, spd: 0.8 + Math.random() * 0.4 });
+    const fluidParticles = [];
+    for (let i = 0; i < 30; i++) fluidParticles.push({ d: i / 30.0 });
+    let rot = 0;
+
+    function stepSim(dt) {
+      simTimeMs += Math.round(dt * 1000);
+      const thermalMass = 110.0;
+      const heatGenKw = 0.045 * Math.pow(load, 1.15) + (speed * 0.015);
+      const deltaAmb = coreTemp - amb;
+      const natLossKw = 0.04 * deltaAmb;
+      const flapRad = (flap * Math.PI) / 180.0;
+      const aeroFlow = (speed / 100.0) * Math.sin(flapRad);
+      const aeroCoolKw = Math.max(0, 0.09 * aeroFlow * deltaAmb);
+      let activeCoolKw = pump ? (0.8 + (pwm / 100.0) * 5.2) : 0;
+      let extHeat = isRunaway ? 45.0 : 0;
+
+      const netHeat = heatGenKw + extHeat - natLossKw - aeroCoolKw - activeCoolKw;
+      coreTemp += (netHeat / thermalMass) * dt;
+      coreTemp = Math.max(-15, Math.min(160, coreTemp));
+
+      let raw = isDisconnect ? -38.5 : coreTemp + (Math.random() - 0.5) * 0.8 + ((Math.random() < 0.05) ? (Math.random() - 0.5) * 3 : 0) + (isNoise ? (Math.random() - 0.5) * 8 : 0);
+      const filt = filter.update(raw);
+
+      if (isDisconnect || filter.fault) {
+        state = "SYSTEM_FAULT"; fault = filter.fault || "ERR_SENSOR_DISCONNECTED";
+      } else if (filt >= THRESHOLDS.T_CRIT) {
+        state = "SYSTEM_FAULT"; fault = "ERR_THERMAL_RUNAWAY_110C";
+      }
+
+      if (state === "SYSTEM_FAULT") {
+        pwm = 0; pump = false; flap = 90; auxKw = 0;
+      } else {
+        if (state === "IDLE_MODE" && filt >= THRESHOLDS.T1) state = "PASSIVE_AERO_COOLING";
+        else if (state === "PASSIVE_AERO_COOLING") {
+          if (filt < THRESHOLDS.T1 - THRESHOLDS.HYST) state = "IDLE_MODE";
+          else if (filt >= THRESHOLDS.T2) state = "ACTIVE_FLUID_LOOP";
+        } else if (state === "ACTIVE_FLUID_LOOP") {
+          if (filt < THRESHOLDS.T2 - THRESHOLDS.HYST) { state = "PASSIVE_AERO_COOLING"; pid.reset(); }
         }
-      });
-    }
 
-    // --- CLOSED LOOP THERMAL SUPERVISOR (100ms TICK) ---
-    setInterval(() => {
-      if (!isAuthenticated || faultActive) return;
-
-      const currentTemp = tFilter.val;
-      const overrideBadge = document.getElementById('overrideBadge');
-      const triggerHint = document.getElementById('triggerHint');
-
-      if (currentTemp > 80) {
-        // Temperature > 80°C -> MUST force STATE_COOLING (Cyan)
-        thermalOverride = 'COOLING';
-        overrideBadge.innerText = "THERMAL OVERRIDE ACTIVE";
-        overrideBadge.className = "text-[10px] font-bold text-[#FF0054] bg-[#FF0054]/10 px-2 py-0.5 rounded border border-[#FF0054]/30 animate-pulse";
-        triggerHint.classList.remove('hidden');
-        triggerHint.innerText = "TRIGGER: > 80°C";
-        updateStateUI(STATES[3]); // COOLING
-        dwellMs = 0;
-      } else if (currentTemp < 40) {
-        // Temperature < 40°C -> MUST force STATE_HEATING (Red)
-        thermalOverride = 'HEATING';
-        overrideBadge.innerText = "THERMAL OVERRIDE ACTIVE";
-        overrideBadge.className = "text-[10px] font-bold text-[#FF0054] bg-[#FF0054]/10 px-2 py-0.5 rounded border border-[#FF0054]/30 animate-pulse";
-        triggerHint.classList.remove('hidden');
-        triggerHint.innerText = "TRIGGER: < 40°C";
-        updateStateUI(STATES[2]); // HEATING
-        dwellMs = 0;
-      } else {
-        // Nominal (40-80°C) -> Standard Timed Transitions
-        thermalOverride = null;
-        overrideBadge.innerText = "AUTONOMOUS DWELL (4.0s)";
-        overrideBadge.className = "text-[10px] text-[#00F5D4] bg-[#00F5D4]/10 px-2 py-0.5 rounded border border-[#00F5D4]/30";
-        triggerHint.classList.add('hidden');
-
-        dwellMs += 100;
-        if (dwellMs >= STATE_DWELL_MAX) {
-          dwellMs = 0;
-          stateIdx = (stateIdx + 1) % STATES.length;
-          updateStateUI(STATES[stateIdx]);
+        if (state === "IDLE_MODE") { flap = 0; pump = false; pwm = 0; auxKw = 0; fault = null; }
+        else if (state === "PASSIVE_AERO_COOLING") {
+          pump = false; pwm = 0;
+          const delta = Math.max(0, Math.min(1, (filt - THRESHOLDS.T1) / (THRESHOLDS.T2 - THRESHOLDS.T1)));
+          flap = delta * 90;
+          auxKw = 0.65 + (1.85 * delta);
+          kwh += auxKw * (dt / 3600);
+          fault = null;
+        } else if (state === "ACTIVE_FLUID_LOOP") {
+          pump = true;
+          pwm = pid.compute(filt, dt);
+          flap = 45 + 45 * (pwm / 100);
+          auxKw = 0; fault = null;
         }
       }
 
-      const pct = thermalOverride ? 100 : Math.round((dwellMs / STATE_DWELL_MAX) * 100);
-      document.getElementById('dwellPercent').innerText = pct + '%';
-      document.getElementById('dwellBar').style.width = pct + '%';
-      document.getElementById('dwellBar').style.backgroundColor = thermalOverride === 'COOLING' ? '#00F5D4' : thermalOverride === 'HEATING' ? '#FF0054' : STATES[stateIdx].color;
-    }, 100);
+      return {
+        ts: simTimeMs, state, temp_raw: Number(raw.toFixed(2)), temp_filt: Number(filt.toFixed(2)),
+        setpoint: sp, speed_kmh: Math.round(speed), flap_deg: Math.round(flap),
+        pump, pwm_pct: Number(pwm.toFixed(1)), pid: { p: Number(pid.p.toFixed(1)), i: Number(pid.i.toFixed(1)), d: Number(pid.d.toFixed(1)) },
+        aux_kw: Number(auxKw.toFixed(2)), fault
+      };
+    }
 
-    // --- CANVAS DUAL-AXIS OSCILLOSCOPE DRAWING ---
-    const canvas = document.getElementById('scopeCanvas');
+    // UI UPDATE & SCHEMATIC RENDERING
+    const canvas = document.getElementById('schematicCanvas');
     const ctx = canvas.getContext('2d');
+    const chartCanvas = document.getElementById('chartCanvas');
+    const cctx = chartCanvas.getContext('2d');
+    const serialBox = document.getElementById('serialBox');
 
-    function resizeCanvas() {
-      const rect = canvas.parentElement.getBoundingClientRect();
-      canvas.width = rect.width * window.devicePixelRatio;
-      canvas.height = rect.height * window.devicePixelRatio;
-      ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
-    }
-    window.addEventListener('resize', resizeCanvas);
-    resizeCanvas();
-
-    function drawScope() {
-      const w = canvas.width / window.devicePixelRatio;
-      const h = canvas.height / window.devicePixelRatio;
-      ctx.clearRect(0, 0, w, h);
+    function drawSchematic(pkt, dt) {
+      const w = canvas.width, h = canvas.height;
+      ctx.fillStyle = '#080A10'; ctx.fillRect(0, 0, w, h);
 
       // Grid
-      ctx.strokeStyle = "#232333";
-      ctx.lineWidth = 1;
-      for (let y = 0; y < h; y += 40) {
-        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+      ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+      for (let x=0; x<w; x+=40) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,h); ctx.stroke(); }
+      for (let y=0; y<h; y+=40) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(w,y); ctx.stroke(); }
+
+      rot += dt * (pump ? (4 + pwm*0.08) : 0);
+
+      // Flaps & Cowl
+      ctx.strokeStyle = 'rgba(75,85,99,0.6)'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(40,90); ctx.bezierCurveTo(120,100,180,120,240,130); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(40,310); ctx.bezierCurveTo(120,300,180,280,240,270); ctx.stroke();
+
+      const fRad = (pkt.flap_deg * Math.PI) / 180;
+      ctx.lineWidth = 6; ctx.strokeStyle = pkt.fault ? '#EF4444' : (pkt.flap_deg > 0 ? '#06B6D4' : '#64748B');
+      ctx.beginPath(); ctx.moveTo(140, 114); ctx.lineTo(140 + Math.cos(fRad)*65, 114 + Math.sin(fRad)*65); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(140, 286); ctx.lineTo(140 + Math.cos(fRad)*65, 286 - Math.sin(fRad)*65); ctx.stroke();
+
+      // Air particles
+      const airSpeed = (speed / 100.0) * 450 * dt;
+      airParticles.forEach(p => {
+        p.x += (airSpeed + 0.3) * p.spd;
+        if (p.x > 40 && p.x < 240) {
+          if (pkt.flap_deg > 5) p.y += (200 - p.y) * 0.08;
+          else p.y += (p.baseY < 200 ? -2.2 : 2.2);
+        }
+        if (p.x > 380) { p.x = 20 + Math.random()*30; p.y = p.baseY; }
+        ctx.strokeStyle = 'rgba(165,243,252,0.45)'; ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.moveTo(p.x-14, p.y); ctx.lineTo(p.x, p.y); ctx.stroke();
+      });
+
+      // Radiator Core & Fans
+      ctx.fillStyle = '#1E293B'; ctx.fillRect(265, 130, 32, 140);
+      ctx.strokeRect(265, 130, 32, 140);
+      const drawF = (cy) => {
+        ctx.fillStyle = '#0F172A'; ctx.beginPath(); ctx.arc(315, cy, 22, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+        ctx.save(); ctx.translate(315, cy); ctx.rotate(rot); ctx.fillStyle = pwm > 0 ? '#38BDF8' : '#64748B';
+        for (let b=0; b<4; b++) { ctx.fillRect(-3, -20, 6, 40); ctx.rotate(Math.PI/4); }
+        ctx.restore();
+      };
+      drawF(165); drawF(235);
+
+      // Piping
+      ctx.lineWidth = 8; ctx.lineCap = 'round';
+      ctx.strokeStyle = pump ? 'rgba(0,245,212,0.7)' : 'rgba(0,245,212,0.25)';
+      ctx.beginPath(); ctx.moveTo(330, 235); ctx.lineTo(470, 235); ctx.lineTo(490, 305); ctx.lineTo(540, 305); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(580, 305); ctx.lineTo(670, 305); ctx.lineTo(690, 280); ctx.stroke();
+
+      const retCol = pkt.temp_filt < 40 ? '#06B6D4' : pkt.temp_filt < 65 ? '#10B981' : pkt.temp_filt < 85 ? '#F59E0B' : '#EF4444';
+      ctx.strokeStyle = pump ? retCol : 'rgba(100,116,139,0.25)';
+      ctx.beginPath(); ctx.moveTo(930, 130); ctx.lineTo(950, 130); ctx.lineTo(950, 80); ctx.lineTo(280, 80); ctx.lineTo(280, 130); ctx.stroke();
+
+      // Pump
+      ctx.fillStyle = pump ? '#064E3B' : '#1E293B'; ctx.strokeStyle = pump ? '#10B981' : '#475569';
+      ctx.beginPath(); ctx.arc(560, 305, 24, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = pump ? '#34D399' : '#94A3B8'; ctx.font = '10px monospace'; ctx.textAlign = 'center';
+      ctx.fillText(pump ? '800V PUMP ON' : 'PUMP OFF', 560, 345);
+
+      // 16-Cell Battery Pack
+      ctx.fillStyle = '#0D111E'; ctx.strokeStyle = pkt.fault ? '#EF4444' : '#334155'; ctx.lineWidth = 2;
+      ctx.fillRect(680, 110, 250, 180); ctx.strokeRect(680, 110, 250, 180);
+      for (let r=0; r<4; r++) {
+        for (let c=0; c<4; c++) {
+          const cx = 695 + c*54, cy = 125 + r*38;
+          ctx.fillStyle = retCol; ctx.fillRect(cx, cy, 46, 30);
+          ctx.fillStyle = '#090A0F'; ctx.font = 'bold 9px monospace';
+          ctx.fillText(`${pkt.temp_filt.toFixed(0)}°`, cx+23, cy+18);
+        }
       }
-      for (let x = 0; x < w; x += 50) {
-        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
-      }
-
-      // Left Axis Map: ADC (0 to 4400)
-      const mapY_ADC = (v) => h - ((v / 4400) * (h - 30) + 15);
-      // Right Axis Map: Temp (0 to 130 °C)
-      const mapY_Temp = (v) => h - ((v / 130) * (h - 30) + 15);
-
-      // Battery Ref: 2048
-      const y2048 = mapY_ADC(2048);
-      ctx.strokeStyle = "#00B4D8";
-      ctx.setLineDash([4, 4]);
-      ctx.beginPath(); ctx.moveTo(0, y2048); ctx.lineTo(w, y2048); ctx.stroke();
-      ctx.fillStyle = "#00B4D8";
-      ctx.font = "9px Consolas, monospace";
-      ctx.fillText("0% CUTOFF (2048)", 10, y2048 - 4);
-
-      // Battery Ref: 4095
-      const y4095 = mapY_ADC(4095);
-      ctx.strokeStyle = "#FFBE0B";
-      ctx.beginPath(); ctx.moveTo(0, y4095); ctx.lineTo(w, y4095); ctx.stroke();
-      ctx.fillStyle = "#FFBE0B";
-      ctx.fillText("100% FULL (4095)", 10, y4095 + 12);
-
-      // Temp Ref: 40°C Heating
-      const y40 = mapY_Temp(40);
-      ctx.strokeStyle = "#FF0054";
-      ctx.beginPath(); ctx.moveTo(0, y40); ctx.lineTo(w, y40); ctx.stroke();
-      ctx.fillStyle = "#FF0054";
-      ctx.fillText("40°C HEATING DEMAND", w - 140, y40 + 12);
-
-      // Temp Ref: 80°C Cooling
-      const y80 = mapY_Temp(80);
-      ctx.strokeStyle = "#00F5D4";
-      ctx.beginPath(); ctx.moveTo(0, y80); ctx.lineTo(w, y80); ctx.stroke();
-      ctx.fillStyle = "#00F5D4";
-      ctx.fillText("80°C OVERHEAT COOLING", w - 140, y80 - 4);
-      ctx.setLineDash([]);
-
-      const step = w / (MAX_SAMPLES - 1);
-
-      // Trace 1: Raw Noisy ADC (Red Faded)
-      ctx.strokeStyle = "rgba(255, 51, 85, 0.45)";
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      for (let i = 0; i < MAX_SAMPLES; i++) {
-        const x = i * step;
-        const y = mapY_ADC(rawBatteryBuf[i]);
-        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-      }
-      ctx.stroke();
-
-      // Trace 2: Filtered Battery (Neon Green Thick)
-      ctx.strokeStyle = "#00FF66";
-      ctx.lineWidth = 3;
-      ctx.shadowColor = "rgba(0, 255, 102, 0.5)";
-      ctx.shadowBlur = 8;
-      ctx.beginPath();
-      for (let i = 0; i < MAX_SAMPLES; i++) {
-        const x = i * step;
-        const y = mapY_ADC(filtBatteryBuf[i]);
-        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-      }
-      ctx.stroke();
-      ctx.shadowBlur = 0;
-
-      // Trace 3: Filtered Temp (Neon Orange on Secondary Axis)
-      ctx.strokeStyle = "#FF9E00";
-      ctx.lineWidth = 2.5;
-      ctx.shadowColor = "rgba(255, 158, 0, 0.5)";
-      ctx.shadowBlur = 6;
-      ctx.beginPath();
-      for (let i = 0; i < MAX_SAMPLES; i++) {
-        const x = i * step;
-        const y = mapY_Temp(filtTempBuf[i]);
-        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-      }
-      ctx.stroke();
-      ctx.shadowBlur = 0;
+      ctx.fillStyle = '#38BDF8'; ctx.font = 'bold 11px monospace';
+      ctx.fillText(`PACK CORE: ${pkt.temp_filt.toFixed(1)}°C`, 805, 100);
     }
 
-    // --- 50ms MCU SUPER-LOOP ---
-    setInterval(() => {
-      if (!isAuthenticated) return;
+    function drawChart() {
+      const w = chartCanvas.width, h = chartCanvas.height;
+      cctx.fillStyle = '#06080E'; cctx.fillRect(0, 0, w, h);
+      cctx.strokeStyle = '#1E293B';
+      cctx.beginPath(); cctx.moveTo(0, h/2); cctx.lineTo(w, h/2); cctx.stroke();
 
-      uptimeMs += 50;
-      const totalSec = Math.floor(uptimeMs / 1000);
-      const hrs = String(Math.floor(totalSec / 3600)).padStart(2, '0');
-      const mins = String(Math.floor((totalSec % 3600) / 60)).padStart(2, '0');
-      const secs = String(totalSec % 60).padStart(2, '0');
-      document.getElementById('uptimeDisplay').innerText = `${hrs}:${mins}:${secs}`;
+      if (history.length < 2) return;
+      const step = w / 60;
+      const mapT = (t) => h - ((t - 10) / 115) * h;
+      const mapP = (p) => h - (p / 100) * h;
 
-      // Noise
-      const bBase = Number(batterySlider.value);
-      const tBase = Number(tempSlider.value);
-      let bNoise = 0;
-      let tNoise = 0;
-      if (noiseCheckbox.checked) {
-        bNoise = (Math.random() * 2 - 1) * 250;
-        tNoise = (Math.random() * 2 - 1) * 3.5;
+      // Filtered Temp (Cyan)
+      cctx.strokeStyle = '#06B6D4'; cctx.lineWidth = 2; cctx.beginPath();
+      history.forEach((d, i) => { const x = i * step, y = mapT(d.temp_filt); if (i === 0) cctx.moveTo(x,y); else cctx.lineTo(x,y); });
+      cctx.stroke();
+
+      // Raw Temp (Dotted)
+      cctx.strokeStyle = 'rgba(103,232,249,0.5)'; cctx.lineWidth = 1; cctx.beginPath();
+      history.forEach((d, i) => { const x = i * step, y = mapT(d.temp_raw); if (i === 0) cctx.moveTo(x,y); else cctx.lineTo(x,y); });
+      cctx.stroke();
+
+      // Setpoint (Amber dashed)
+      cctx.strokeStyle = '#F59E0B'; cctx.lineWidth = 1.5; cctx.beginPath();
+      history.forEach((d, i) => { const x = i * step, y = mapT(d.setpoint); if (i === 0) cctx.moveTo(x,y); else cctx.lineTo(x,y); });
+      cctx.stroke();
+
+      // PWM Duty (Purple)
+      cctx.strokeStyle = '#C084FC'; cctx.lineWidth = 2; cctx.beginPath();
+      history.forEach((d, i) => { const x = i * step, y = mapP(d.pwm_pct); if (i === 0) cctx.moveTo(x,y); else cctx.lineTo(x,y); });
+      cctx.stroke();
+    }
+
+    // CONTROLS ATTACHMENT
+    const sAmb = document.getElementById('sliderAmb');
+    const sSpeed = document.getElementById('sliderSpeed');
+    const sLoad = document.getElementById('sliderLoad');
+    const sSp = document.getElementById('sliderSp');
+    const sKp = document.getElementById('sliderKp');
+    const sKi = document.getElementById('sliderKi');
+    const sKd = document.getElementById('sliderKd');
+
+    sAmb.oninput = (e) => { amb = Number(e.target.value); document.getElementById('lblAmb').innerText = amb + '°C'; };
+    sSpeed.oninput = (e) => { speed = Number(e.target.value); document.getElementById('lblSpeed').innerText = speed + ' km/h'; };
+    sLoad.oninput = (e) => { load = Number(e.target.value); document.getElementById('lblLoad').innerText = load + ' kW'; };
+    sSp.oninput = (e) => { sp = Number(e.target.value); pid.sp = sp; document.getElementById('lblSp').innerText = sp + '°C'; };
+    sKp.oninput = (e) => { pid.kp = Number(e.target.value); document.getElementById('lblKp').innerText = pid.kp.toFixed(2); };
+    sKi.oninput = (e) => { pid.ki = Number(e.target.value); document.getElementById('lblKi').innerText = pid.ki.toFixed(2); };
+    sKd.oninput = (e) => { pid.kd = Number(e.target.value); document.getElementById('lblKd').innerText = pid.kd.toFixed(2); };
+
+    function setPid(kp, ki, kd) {
+      pid.kp = kp; pid.ki = ki; pid.kd = kd;
+      sKp.value = kp; sKi.value = ki; sKd.value = kd;
+      document.getElementById('lblKp').innerText = kp.toFixed(2);
+      document.getElementById('lblKi').innerText = ki.toFixed(2);
+      document.getElementById('lblKd').innerText = kd.toFixed(2);
+    }
+
+    function injectDisconnect() { isDisconnect = true; }
+    function injectRunaway() { isRunaway = true; coreTemp = 115.0; }
+    function injectNoise() { isNoise = true; setTimeout(() => isNoise = false, 4000); }
+    function resetSystem() {
+      if (coreTemp >= 105) return;
+      isDisconnect = false; isRunaway = false; fault = null; pid.reset();
+      state = coreTemp < 40 ? "IDLE_MODE" : coreTemp < 65 ? "PASSIVE_AERO_COOLING" : "ACTIVE_FLUID_LOOP";
+    }
+
+    function clearLogs() { serialBox.innerHTML = ''; }
+
+    // MAIN LOOP 50Hz
+    let lastTime = performance.now();
+    let lastTelem = 0;
+
+    function loop(now) {
+      const dt = Math.min((now - lastTime) / 1000.0, 0.1);
+      lastTime = now;
+
+      const pkt = stepSim(dt);
+      drawSchematic(pkt, dt);
+
+      // Telemetry 10Hz
+      if (now - lastTelem >= 100) {
+        lastTelem = now;
+        history.push(pkt);
+        if (history.length > 60) history.shift();
+        drawChart();
+
+        // Update KPIs
+        document.getElementById('kpiTempFilt').innerText = pkt.temp_filt.toFixed(1);
+        document.getElementById('kpiTempRaw').innerText = pkt.temp_raw.toFixed(1);
+        document.getElementById('kpiState').innerText = pkt.state;
+        document.getElementById('kpiFlap').innerText = pkt.flap_deg;
+        document.getElementById('kpiPump').innerText = pkt.pump ? 'CIRCULATING' : 'STANDBY (0W)';
+        document.getElementById('kpiPwm').innerText = pkt.pwm_pct.toFixed(1);
+        document.getElementById('kpiSetpoint').innerText = pkt.setpoint.toFixed(0);
+        document.getElementById('kpiAuxKw').innerText = (pkt.aux_kw >= 0 ? '+' : '') + pkt.aux_kw.toFixed(2);
+        document.getElementById('hudSpeed').innerText = pkt.speed_kmh + ' km/h';
+        document.getElementById('hudFlap').innerText = pkt.flap_deg + '°';
+        document.getElementById('hudPump').innerText = pkt.pump ? 'ENGAGED' : 'STANDBY';
+        document.getElementById('hudPwm').innerText = pkt.pwm_pct + '%';
+
+        // Serial Packet
+        const line = document.createElement('div');
+        line.innerText = JSON.stringify(pkt);
+        line.className = pkt.fault ? 'text-red-400 font-bold' : pkt.state === 'ACTIVE_FLUID_LOOP' ? 'text-amber-300' : 'text-cyan-300';
+        serialBox.appendChild(line);
+        if (serialBox.children.length > 50) serialBox.removeChild(serialBox.firstChild);
+        serialBox.scrollTop = serialBox.scrollHeight;
       }
-      const rawBattery = Math.round(Math.min(4095, Math.max(0, bBase + bNoise)));
-      const rawTemp = Number(Math.min(120, Math.max(0, tBase + tNoise)).toFixed(1));
 
-      const filtBattery = Math.round(updateFilter(bFilter, rawBattery));
-      const filtTemp = Number(updateFilter(tFilter, rawTemp).toFixed(1));
+      requestAnimationFrame(loop);
+    }
 
-      // Battery mapping [2048, 4095] -> [0%, 100%]
-      let bPct = 0;
-      if (filtBattery <= 2048) bPct = 0;
-      else if (filtBattery >= 4095) bPct = 100;
-      else bPct = Math.round(((filtBattery - 2048) / (4095 - 2048)) * 100);
-      bPct = Math.min(100, Math.max(0, bPct));
-
-      const voltage = ((filtBattery / 4095) * 3.3).toFixed(2);
-
-      // Battery UI
-      document.getElementById('batteryProgressBar').style.width = Math.max(12, bPct) + '%';
-      document.getElementById('batteryPercentText').innerText = bPct + '%';
-      document.getElementById('batteryInnerPct').innerText = bPct + '%';
-      document.getElementById('metricFilteredRaw').innerText = filtBattery + ' LSB';
-      document.getElementById('metricVoltage').innerText = voltage + ' V';
-
-      // Temp UI
-      const tempPct = Math.min(100, Math.max(10, (filtTemp / 120) * 100));
-      const tempBar = document.getElementById('tempProgressBar');
-      tempBar.style.width = tempPct + '%';
-      document.getElementById('tempBadge').innerText = filtTemp + '°C';
-      document.getElementById('tempInnerVal').innerText = filtTemp + '°C';
-      document.getElementById('metricRawTemp').innerText = rawTemp + '°C';
-
-      const statusText = document.getElementById('tempStatusText');
-      if (filtTemp > 80) {
-        statusText.innerText = "COOLING";
-        statusText.className = "text-[#00F5D4] font-bold text-xs";
-        tempBar.style.background = 'linear-gradient(90deg, #FFBE0B 0%, #FF0054 60%, #00F5D4 100%)';
-      } else if (filtTemp < 40) {
-        statusText.innerText = "HEATING";
-        statusText.className = "text-[#FF0054] font-bold text-xs";
-        tempBar.style.background = 'linear-gradient(90deg, #00B4D8 0%, #FF0054 100%)';
-      } else {
-        statusText.innerText = "NOMINAL";
-        statusText.className = "text-[#00FF66] font-bold text-xs";
-        tempBar.style.background = 'linear-gradient(90deg, #00B4D8 0%, #FFBE0B 100%)';
-      }
-
-      // Buffers & Draw
-      rawBatteryBuf.shift(); rawBatteryBuf.push(rawBattery);
-      filtBatteryBuf.shift(); filtBatteryBuf.push(filtBattery);
-      filtTempBuf.shift(); filtTempBuf.push(filtTemp);
-      drawScope();
-    }, 50);
+    requestAnimationFrame(loop);
   </script>
 </body>
 </html>

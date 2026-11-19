@@ -1,225 +1,292 @@
 /**
  * @file state_machine.cpp
- * @brief Production Implementation of State Machine and Sensor Filtering
- * @project ESP32 Production Firmware - Phase 1
+ * @brief Implementation of Deterministic State Machine for AeroTherm EV Thermal Loop
+ * @project AeroTherm Phase 2 Hybrid EV Thermal Management System
  */
 
 #include "state_machine.h"
+#include <math.h>
 
-// =============================================================================
-// INTERNAL STATIC STATE VARIABLES (Encapsulated)
-// =============================================================================
+#ifdef ARDUINO
+#include <Arduino.h>
+#endif
 
-// Active State Tracking
-static SystemState   s_currentState     = STATE_INIT;
-static unsigned long s_stateEntryTime   = 0;
+ThermalStateMachine::ThermalStateMachine()
+    : currentState_(STATE_IDLE_MODE),
+      currentSpeedKmh_(0.0f),
+      flapAngleDeg_(0.0f),
+      pumpActive_(false),
+      pwmDutyPct_(0.0f),
+      auxPowerSavedKw_(0.0f),
+      faultMessage_(nullptr),
+      manualFaultInjected_(false) {}
 
-// Moving Average Filter Context for BATTERY_PIN
-static int           s_batteryBuffer[BATTERY_FILTER_SIZE] = {0};
-static size_t        s_batteryBufferIdx = 0;
-static int32_t       s_batterySum       = 0;
-static int           s_batteryFilteredRaw = 0;
+void ThermalStateMachine::init() {
+    filter_.init(25.0f);
+    pid_.reset();
+    currentState_ = STATE_IDLE_MODE;
+    flapAngleDeg_ = 0.0f;
+    pumpActive_ = false;
+    pwmDutyPct_ = 0.0f;
+    auxPowerSavedKw_ = 0.0f;
+    faultMessage_ = nullptr;
+    manualFaultInjected_ = false;
 
-// Non-blocking Timing Hooks
-static unsigned long s_lastBatterySampleTime = 0;
+#ifdef ARDUINO
+    pinMode(PIN_PUMP_RELAY, OUTPUT);
+    digitalWrite(PIN_PUMP_RELAY, LOW);
 
-// =============================================================================
-// FORWARD DECLARATIONS (STATIC INTERNAL)
-// =============================================================================
-static void updateBatteryFilter();
-static void changeState(SystemState newState);
+    pinMode(PIN_HEARTBEAT_LED, OUTPUT);
+    digitalWrite(PIN_HEARTBEAT_LED, LOW);
 
-// =============================================================================
-// SENSOR FILTERING IMPLEMENTATION
-// =============================================================================
+    // Setup ESP32 LEDC PWM channels if compiling on ESP32
+#if defined(ESP32)
+    ledcSetup(0, PWM_SERVO_FREQ_HZ, PWM_RESOLUTION_BITS);
+    ledcAttachPin(PIN_FLAP_SERVO, 0);
 
-/**
- * @brief Samples the battery ADC channel and updates the circular rolling average.
- * Execution Time: O(1) constant time, minimal jitter.
- */
-static void updateBatteryFilter() {
-    // Acquire raw 12-bit ADC reading (0 - 4095)
-    int rawSample = analogRead(BATTERY_PIN);
+    ledcSetup(1, PWM_CHILLER_FREQ_HZ, PWM_RESOLUTION_BITS);
+    ledcAttachPin(PIN_CHILLER_PWM, 1);
+#else
+    pinMode(PIN_FLAP_SERVO, OUTPUT);
+    pinMode(PIN_CHILLER_PWM, OUTPUT);
+#endif
 
-    // Subtract the oldest reading in the circular buffer from the running sum
-    s_batterySum -= s_batteryBuffer[s_batteryBufferIdx];
+#endif
 
-    // Insert the new sample into the circular buffer
-    s_batteryBuffer[s_batteryBufferIdx] = rawSample;
-
-    // Add the new sample to the running sum
-    s_batterySum += rawSample;
-
-    // Increment and wrap buffer index
-    s_batteryBufferIdx = (s_batteryBufferIdx + 1) % BATTERY_FILTER_SIZE;
-
-    // Compute updated moving average
-    s_batteryFilteredRaw = static_cast<int>(s_batterySum / static_cast<int32_t>(BATTERY_FILTER_SIZE));
+    applyHardwareActuation(0.0f, false, 0.0f);
 }
 
-/**
- * @brief Returns the moving average filtered battery percentage.
- * Mapped linearly from raw range [2048, 4095] to [0%, 100%].
- */
-int getFilteredBatteryPercent() {
-    // Map raw ADC span (2048-4095) to percentage (0-100)
-    long calculatedPercent = map(s_batteryFilteredRaw, BATTERY_RAW_EMPTY, BATTERY_RAW_FULL, 0, 100);
+void ThermalStateMachine::update(float rawTemp, float vehicleSpeedKmh, float dt_seconds) {
+    currentSpeedKmh_ = vehicleSpeedKmh;
 
-    // Apply strict bounds constraint [0, 100]
-    return static_cast<int>(constrain(calculatedPercent, 0, 100));
-}
+    // 1. Ingest raw ADC sample through O(1) circular filter
+    float filteredTemp = filter_.update(rawTemp);
 
-/**
- * @brief Returns the raw averaged ADC value for low-level diagnostics.
- */
-int getRawBatteryAverage() {
-    return s_batteryFilteredRaw;
-}
-
-// =============================================================================
-// STATE TRANSITION ENGINE
-// =============================================================================
-
-/**
- * @brief Internal helper to handle clean state entry/exit semantics.
- */
-static void changeState(SystemState newState) {
-    if (s_currentState == newState) {
-        return; // No-op for identical state
+    // 2. High-Priority Safety Interlock Checks (Sub-millisecond transition)
+    if (manualFaultInjected_) {
+        currentState_ = STATE_SYSTEM_FAULT;
+    } else if (filter_.isFaulted()) {
+        faultMessage_ = filter_.getFaultString();
+        currentState_ = STATE_SYSTEM_FAULT;
+    } else if (filteredTemp >= THERMAL_T_CRIT) {
+        faultMessage_ = "ERR_THERMAL_RUNAWAY_CRITICAL_T_EXCEEDED";
+        currentState_ = STATE_SYSTEM_FAULT;
     }
 
-    Serial.printf("[STATE TRANSITION] %s -> %s (at %lu ms)\n",
-                  stateToString(s_currentState),
-                  stateToString(newState),
-                  millis());
+    // 3. Deterministic State Processing
+    if (currentState_ == STATE_SYSTEM_FAULT) {
+        executeSystemFault();
+    } else {
+        // State Transition Matrix with Anti-Chatter Hysteresis
+        switch (currentState_) {
+            case STATE_IDLE_MODE:
+                if (filteredTemp >= THERMAL_T1) {
+                    currentState_ = STATE_PASSIVE_AERO_COOLING;
+                }
+                break;
 
-    s_currentState   = newState;
-    s_stateEntryTime = millis();
+            case STATE_PASSIVE_AERO_COOLING:
+                if (filteredTemp < (THERMAL_T1 - THERMAL_HYSTERESIS)) {
+                    currentState_ = STATE_IDLE_MODE;
+                } else if (filteredTemp >= THERMAL_T2) {
+                    currentState_ = STATE_ACTIVE_FLUID_LOOP;
+                }
+                break;
+
+            case STATE_ACTIVE_FLUID_LOOP:
+                if (filteredTemp < (THERMAL_T2 - THERMAL_HYSTERESIS)) {
+                    currentState_ = STATE_PASSIVE_AERO_COOLING;
+                    pid_.reset(); // Reset integrator when falling back to passive aero
+                }
+                break;
+
+            default:
+                currentState_ = STATE_IDLE_MODE;
+                break;
+        }
+
+        // Execute Active State Logic
+        switch (currentState_) {
+            case STATE_IDLE_MODE:
+                executeIdleMode(filteredTemp, vehicleSpeedKmh, dt_seconds);
+                break;
+
+            case STATE_PASSIVE_AERO_COOLING:
+                executePassiveAero(filteredTemp, vehicleSpeedKmh, dt_seconds);
+                break;
+
+            case STATE_ACTIVE_FLUID_LOOP:
+                executeActiveFluidLoop(filteredTemp, vehicleSpeedKmh, dt_seconds);
+                break;
+
+            default:
+                break;
+        }
+    }
+
+    // 4. Physical Hardware Output Actuation
+    applyHardwareActuation(flapAngleDeg_, pumpActive_, pwmDutyPct_);
 }
 
-/**
- * @brief Returns the current state enum value.
- */
-SystemState getCurrentState() {
-    return s_currentState;
+void ThermalStateMachine::executeIdleMode(float temp, float speed, float dt) {
+    (void)temp;
+    (void)speed;
+    (void)dt;
+
+    flapAngleDeg_ = 0.0f;     // Flaps fully sealed for aerodynamic efficiency
+    pumpActive_ = false;      // Zero pump energy consumption
+    pwmDutyPct_ = 0.0f;       // Zero thermal cooling PWM
+    auxPowerSavedKw_ = 0.0f;  // Quiescent baseline
+    faultMessage_ = nullptr;
 }
 
-/**
- * @brief Translates SystemState enum to printable text.
- */
-const char* stateToString(SystemState state) {
-    switch (state) {
-        case STATE_INIT:    return "STATE_INIT";
-        case STATE_IDLE:    return "STATE_IDLE";
-        case STATE_HEATING: return "STATE_HEATING";
-        case STATE_COOLING: return "STATE_COOLING";
-        case STATE_FAULT:   return "STATE_FAULT";
-        default:            return "STATE_UNKNOWN";
+void ThermalStateMachine::executePassiveAero(float temp, float speed, float dt) {
+    (void)dt;
+
+    pumpActive_ = false;      // Crucial: Active pump remains OFF (zero aux power draw)
+    pwmDutyPct_ = 0.0f;       // No active refrigeration
+
+    // Dynamic Venturi Flap Modulation (0° - 90°)
+    // Proportional to thermal delta between T1 (40°C) and T2 (65°C)
+    float deltaRatio = (temp - THERMAL_T1) / (THERMAL_T2 - THERMAL_T1);
+    if (deltaRatio < 0.0f) deltaRatio = 0.0f;
+    if (deltaRatio > 1.0f) deltaRatio = 1.0f;
+
+    // Vehicle speed ram-air scaling: higher speed delivers more dynamic pressure
+    float speedRatio = (speed > 5.0f) ? (speed / 100.0f) : 0.05f;
+    if (speedRatio > 1.0f) speedRatio = 1.0f;
+
+    // Flap deploys proportionally with temperature demand
+    flapAngleDeg_ = deltaRatio * FLAP_MAX_ANGLE_DEG;
+
+    // Auxiliary Power Saved (kW):
+    // Saved by eliminating 800V fluid pump (650W) and refrigeration compressor (1.8kW * deltaRatio)
+    auxPowerSavedKw_ = 0.65f + (1.85f * deltaRatio);
+    faultMessage_ = nullptr;
+}
+
+void ThermalStateMachine::executeActiveFluidLoop(float temp, float speed, float dt) {
+    (void)speed;
+
+    pumpActive_ = true; // High-voltage fluid pump engaged
+
+    // Precision PID closed-loop control to lock temperature at target setpoint (75°C)
+    pwmDutyPct_ = pid_.compute(temp, dt);
+
+    // Flaps open dynamically to feed the fluid radiator core
+    // Modulates between 45° and 90° based on active cooling demand
+    flapAngleDeg_ = 45.0f + (45.0f * (pwmDutyPct_ / 100.0f));
+
+    // Active systems are drawing power, so passive savings = 0.0 kW
+    auxPowerSavedKw_ = 0.0f;
+    faultMessage_ = nullptr;
+}
+
+void ThermalStateMachine::executeSystemFault() {
+    // Immediate Hardware Safety Kill-Switch:
+    pwmDutyPct_ = 0.0f;                   // Cut all high-voltage PWM actuators immediately
+    pumpActive_ = false;                  // Cut active fluid pump
+    flapAngleDeg_ = FLAP_MAX_ANGLE_DEG;   // Force Venturi flaps to 90° fail-safe cooling position
+    auxPowerSavedKw_ = 0.0f;
+}
+
+void ThermalStateMachine::applyHardwareActuation(float flapAngle, bool pumpState, float pwmDuty) {
+#ifdef ARDUINO
+    // Actuate Fluid Pump Relay
+    digitalWrite(PIN_PUMP_RELAY, pumpState ? HIGH : LOW);
+
+#if defined(ESP32)
+    // Servo Flap PWM (50Hz RC servo pulse width: 1ms (0°) to 2ms (90°))
+    // 50Hz period = 20ms. 10-bit resolution = 1024 ticks. 1ms = ~51 ticks, 2ms = ~102 ticks.
+    float pulseMs = 1.0f + (flapAngle / 90.0f) * 1.0f;
+    uint32_t servoDuty = static_cast<uint32_t>((pulseMs / 20.0f) * PWM_MAX_DUTY_RAW);
+    ledcWrite(0, servoDuty);
+
+    // Thermal Chiller / Fan PWM (5kHz, 0-1023)
+    uint32_t chillerDuty = static_cast<uint32_t>((pwmDuty / 100.0f) * PWM_MAX_DUTY_RAW);
+    ledcWrite(1, chillerDuty);
+#elif defined(ARDUINO)
+    // Generic Arduino analogWrite fallback
+    analogWrite(PIN_FLAP_SERVO, static_cast<int>((flapAngle / 90.0f) * 255.0f));
+    analogWrite(PIN_CHILLER_PWM, static_cast<int>((pwmDuty / 100.0f) * 255.0f));
+#endif
+
+#else
+    (void)flapAngle;
+    (void)pumpState;
+    (void)pwmDuty;
+#endif
+}
+
+void ThermalStateMachine::injectFault(const char* reason) {
+    manualFaultInjected_ = true;
+    faultMessage_ = reason;
+    currentState_ = STATE_SYSTEM_FAULT;
+    executeSystemFault();
+}
+
+bool ThermalStateMachine::resetFault() {
+    // Safety Interlock: Only allow reset if physical temperature is below safe threshold
+    float currentTemp = filter_.getFiltered();
+    if (currentTemp >= (THERMAL_T_CRIT - 5.0f)) {
+        return false; // Temperature still dangerously high
+    }
+
+    if (filter_.isFaulted()) {
+        return false; // Hardware sensor fault still active
+    }
+
+    manualFaultInjected_ = false;
+    faultMessage_ = nullptr;
+    pid_.reset();
+    
+    // Evaluate state immediately based on current safe temperature
+    if (currentTemp < THERMAL_T1) {
+        currentState_ = STATE_IDLE_MODE;
+    } else if (currentTemp < THERMAL_T2) {
+        currentState_ = STATE_PASSIVE_AERO_COOLING;
+    } else {
+        currentState_ = STATE_ACTIVE_FLUID_LOOP;
+    }
+    return true;
+}
+
+void ThermalStateMachine::setPidGains(float kp, float ki, float kd) {
+    pid_.setGains(kp, ki, kd);
+}
+
+void ThermalStateMachine::setSetpoint(float setpoint) {
+    pid_.setSetpoint(setpoint);
+}
+
+const char* ThermalStateMachine::getStateName() const {
+    switch (currentState_) {
+        case STATE_IDLE_MODE:
+            return "IDLE_MODE";
+        case STATE_PASSIVE_AERO_COOLING:
+            return "PASSIVE_AERO_COOLING";
+        case STATE_ACTIVE_FLUID_LOOP:
+            return "ACTIVE_FLUID_LOOP";
+        case STATE_SYSTEM_FAULT:
+            return "SYSTEM_FAULT";
+        default:
+            return "UNKNOWN";
     }
 }
 
-/**
- * @brief Latches the system into STATE_FAULT.
- */
-void triggerSystemFault(const char* faultReason) {
-    Serial.printf("[SYSTEM FAULT DETECTED] Reason: %s (Time: %lu ms)\n",
-                  (faultReason != nullptr) ? faultReason : "Unspecified",
-                  millis());
-    changeState(STATE_FAULT);
+ThermalSystemSnapshot ThermalStateMachine::getSnapshot(uint32_t timestamp_ms) const {
+    ThermalSystemSnapshot snap;
+    snap.timestamp_ms = timestamp_ms;
+    snap.state = currentState_;
+    snap.temp_raw = filter_.getLatestRaw();
+    snap.temp_filtered = filter_.getFiltered();
+    snap.setpoint = pid_.getSetpoint();
+    snap.vehicle_speed_kmh = currentSpeedKmh_;
+    snap.flap_angle_deg = flapAngleDeg_;
+    snap.pump_active = pumpActive_;
+    snap.pwm_duty_pct = pwmDutyPct_;
+    snap.pid = pid_.getTerms();
+    snap.fault_message = faultMessage_;
+    snap.aux_power_saved_kw = auxPowerSavedKw_;
+    return snap;
 }
-
-// =============================================================================
-// STATE MACHINE LIFECYCLE
-// =============================================================================
-
-/**
- * @brief System & Peripheral Initialization.
- */
-void stateMachineInit() {
-    // 1. Configure ADC Hardware Settings
-    analogReadResolution(ADC_RESOLUTION_BITS); // 12-bit resolution (0-4095)
-    analogSetPinAttenuation(BATTERY_PIN, ADC_11db);     // Full-scale ~3.3V range
-    analogSetPinAttenuation(TEMP_SENSOR_PIN, ADC_11db);
-
-    // 2. Prime the Moving Average Filter Buffer
-    // Prevents cold-start artifact where battery reports 0% during initial window filling
-    s_batterySum = 0;
-    for (size_t i = 0; i < BATTERY_FILTER_SIZE; ++i) {
-        int initialSample = analogRead(BATTERY_PIN);
-        s_batteryBuffer[i] = initialSample;
-        s_batterySum += initialSample;
-    }
-    s_batteryBufferIdx = 0;
-    s_batteryFilteredRaw = static_cast<int>(s_batterySum / static_cast<int32_t>(BATTERY_FILTER_SIZE));
-
-    // 3. Initialize Timers and Initial State
-    s_lastBatterySampleTime = millis();
-    s_stateEntryTime        = millis();
-    s_currentState          = STATE_INIT;
-
-    Serial.println(F("[INIT] Hardware ADC configured, filter buffer primed."));
-}
-
-/**
- * @brief Non-blocking State Machine Loop Worker.
- */
-void stateMachineRun() {
-    const unsigned long now = millis();
-
-    // -------------------------------------------------------------------------
-    // 1. Periodic Non-Blocking Sensor Acquisition (Decoupled from State Machine)
-    // -------------------------------------------------------------------------
-    if (now - s_lastBatterySampleTime >= BATTERY_SAMPLE_INTERVAL_MS) {
-        s_lastBatterySampleTime = now;
-        updateBatteryFilter();
-    }
-
-    // -------------------------------------------------------------------------
-    // 2. State Machine Dispatch Engine (Zero Blocking Delays)
-    // -------------------------------------------------------------------------
-    switch (s_currentState) {
-        case STATE_INIT: {
-            // Hardware verified, automatically transition to nominal standby
-            changeState(STATE_IDLE);
-            break;
-        }
-
-        case STATE_IDLE: {
-            // Standby state: monitor conditions and transition after dwell timeout
-            if (now - s_stateEntryTime >= STATE_TIMEOUT_IDLE_MS) {
-                changeState(STATE_HEATING);
-            }
-            break;
-        }
-
-        case STATE_HEATING: {
-            // Execute heating process logic (e.g. PWM heater driver)
-            // Transition to cooling phase upon cycle timeout
-            if (now - s_stateEntryTime >= STATE_TIMEOUT_HEATING_MS) {
-                changeState(STATE_COOLING);
-            }
-            break;
-        }
-
-        case STATE_COOLING: {
-            // Execute cooling process logic (e.g. cooling fan driver)
-            // Transition back to idle once temperature is mitigated
-            if (now - s_stateEntryTime >= STATE_TIMEOUT_COOLING_MS) {
-                changeState(STATE_IDLE);
-            }
-            break;
-        }
-
-        case STATE_FAULT: {
-            // Safe state: actuators forced OFF, wait for manual recovery/reset
-            // In Phase 1, the fault state simply holds the system safely.
-            break;
-        }
-
-        default: {
-            triggerSystemFault("Illegal/Corrupted State Vector");
-            break;
-        }
-    }
-}
-
