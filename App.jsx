@@ -12,6 +12,7 @@
  */
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { Lock } from 'lucide-react';
 import HeaderBar from './src/components/HeaderBar';
 import ThermalSchematic3D from './src/components/ThermalSchematic3D';
 import ThermalSchematic from './src/components/ThermalSchematic';
@@ -19,6 +20,7 @@ import TelemetryChart from './src/components/TelemetryChart';
 import StateMachineViewer from './src/components/StateMachineViewer';
 import ControlPanel from './src/components/ControlPanel';
 import SerialConsole from './src/components/SerialConsole';
+import PartnerBriefModal from './src/components/PartnerBriefModal';
 
 import { HilSimulator } from './src/services/physicsEngine';
 import { WebSerialBridge } from './src/services/webSerialBridge';
@@ -29,6 +31,11 @@ export default function App() {
 
   // Hero Visualizer Mode: '3D' (Default) or '2D'
   const [visualMode, setVisualMode] = useState('3D');
+
+  // Partner NDA Briefing & Presentation Mode State
+  const [isPartnerBriefOpen, setIsPartnerBriefOpen] = useState(false);
+  const [ndaStatus, setNdaStatus] = useState('EXECUTED'); // 'EXECUTED' | 'UNDER_REVIEW'
+  const [pitchMode, setPitchMode] = useState('EXECUTIVE'); // 'EXECUTIVE' | 'DEEP_DIVE'
 
   // HIL Physics Engine Instance
   const simRef = useRef(null);
@@ -124,13 +131,13 @@ export default function App() {
         pid: packet.pid
       };
       const updated = [...prev, newEntry];
-      return updated.length > 120 ? updated.slice(updated.length - 120) : updated;
+      return updated.length > 150 ? updated.slice(updated.length - 150) : updated;
     });
 
     const jsonString = JSON.stringify(packet);
     setSerialLogs((prev) => {
       const updated = [...prev, jsonString];
-      return updated.length > 60 ? updated.slice(updated.length - 60) : updated;
+      return updated.length > 80 ? updated.slice(updated.length - 80) : updated;
     });
   }, []);
 
@@ -181,12 +188,12 @@ export default function App() {
               pid: packet.pid
             };
             const updated = [...prev, newEntry];
-            return updated.length > 120 ? updated.slice(updated.length - 120) : updated;
+            return updated.length > 150 ? updated.slice(updated.length - 150) : updated;
           });
 
           setSerialLogs((prev) => {
             const updated = [...prev, rawLine];
-            return updated.length > 60 ? updated.slice(updated.length - 60) : updated;
+            return updated.length > 80 ? updated.slice(updated.length - 80) : updated;
           });
         },
         (status) => {
@@ -273,6 +280,9 @@ export default function App() {
           onDisconnectSerial={handleDisconnectSerial}
           telemetry={telemetry}
           uptimeStr={formatUptime(uptimeSeconds)}
+          onOpenPartnerBrief={() => setIsPartnerBriefOpen(true)}
+          ndaStatus={ndaStatus}
+          pitchMode={pitchMode}
         />
 
             {/* 2. Main Two-Column Viewport with 100% Flat Viewport Lock */}
@@ -337,18 +347,36 @@ export default function App() {
                 </div>
             </main>
 
-            {/* 3. Bottom Slim Engineering Footer */}
-              <footer className="flex-shrink-0 border-t border-gray-800/80 pt-1 flex items-center justify-between text-[9.5px] font-mono text-gray-500">
-                <div className="flex items-center gap-1.5">
-                  <span className="h-1.5 w-1.5 rounded-full bg-cyan-500" />
-                  <span>AeroTherm Phase 2 EV Thermal Architecture // 3D Digital Twin &amp; HIL Engineering Console</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span>Target: ESP32 / STM32</span>
-                  <span>Baud: 115200 8-N-1</span>
-                  <span>Safety: ISO 26262 ASIL-B</span>
-                </div>
-              </footer>
+            {/* 3. Bottom Slim Engineering Footer with NDA Guardrail Notice */}
+            <footer className="flex-shrink-0 border-t border-gray-800/80 pt-1 flex flex-col sm:flex-row items-center justify-between text-[9.5px] font-mono text-gray-500 gap-1">
+              <div className="flex items-center gap-1.5">
+                <span className="h-1.5 w-1.5 rounded-full bg-cyan-500 flex-shrink-0" />
+                <span>AeroTherm Phase 2 EV Thermal Architecture // 3D Digital Twin &amp; HIL Engineering Console</span>
+              </div>
+              <div className="flex items-center gap-2.5 flex-wrap">
+                <button
+                  onClick={() => setIsPartnerBriefOpen(true)}
+                  className="text-amber-400 hover:text-amber-300 flex items-center gap-1 transition-colors underline underline-offset-2"
+                  title="Open OEM / Autoven Partner Pitch Brief & NDA Guardrail"
+                >
+                  <Lock className="h-2.5 w-2.5 text-amber-400" />
+                  <span>OEM PARTNER BRIEF (AUTOVEN NDA REQUIRED)</span>
+                </button>
+                <span className="text-gray-600 hidden sm:inline">|</span>
+                <span>Target: ESP32 / STM32</span>
+                <span>Safety: ISO 26262 ASIL-B</span>
+              </div>
+            </footer>
+
+            {/* OEM / Tier-1 Partner Briefing & NDA Modal */}
+            <PartnerBriefModal
+              isOpen={isPartnerBriefOpen}
+              onClose={() => setIsPartnerBriefOpen(false)}
+              ndaStatus={ndaStatus}
+              setNdaStatus={setNdaStatus}
+              pitchMode={pitchMode}
+              setPitchMode={setPitchMode}
+            />
           </div>
           );
 }

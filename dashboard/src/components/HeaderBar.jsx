@@ -15,7 +15,9 @@ import {
   Fan,
   Droplets,
   ShieldCheck,
-  Usb
+  Usb,
+  Lock,
+  ShieldAlert
 } from 'lucide-react';
 
 const HeaderBar = memo(function HeaderBar({
@@ -25,7 +27,10 @@ const HeaderBar = memo(function HeaderBar({
   onConnectSerial,
   onDisconnectSerial,
   telemetry,
-  uptimeStr
+  uptimeStr,
+  onOpenPartnerBrief,
+  ndaStatus = 'EXECUTED',
+  pitchMode = 'EXECUTIVE'
 }) {
   const {
     state = 'IDLE_MODE',
@@ -61,6 +66,19 @@ const HeaderBar = memo(function HeaderBar({
               <span className="text-[9px] font-mono px-1 py-0.2 rounded bg-gray-800/80 text-gray-400">
                 ASIL-B ISO 26262
               </span>
+              {onOpenPartnerBrief && (
+                <button
+                  onClick={onOpenPartnerBrief}
+                  className="flex items-center gap-1 px-1.5 py-0.2 rounded bg-amber-950/80 hover:bg-amber-900 border border-amber-600 text-amber-300 text-[9px] font-mono font-semibold transition-all shadow-sm shadow-amber-950/50 ml-0.5"
+                  title="Open OEM / Autoven Partner Briefing & NDA Guardrail"
+                >
+                  <Lock className="h-2.5 w-2.5 text-amber-400" />
+                  <span>NDA BRIEF</span>
+                  <span className="px-1 rounded bg-amber-500/20 text-[8px] border border-amber-500/40 font-bold text-amber-200">
+                    AUTOVEN
+                  </span>
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -115,8 +133,20 @@ const HeaderBar = memo(function HeaderBar({
             </div>
           )}
 
-          <div className="px-2 py-0.5 rounded bg-black/40 border border-gray-800 text-gray-400 text-[10px]">
-            CLOCK: <strong className="text-gray-200">{uptimeStr}</strong>
+          <div className="flex items-center gap-1">
+            <span
+              className={`px-1.5 py-0.5 rounded border text-[9.5px] font-mono font-semibold ${
+                pitchMode === 'EXECUTIVE'
+                  ? 'bg-cyan-950/80 border-cyan-700 text-cyan-300'
+                  : 'bg-purple-950/80 border-purple-700 text-purple-300'
+              }`}
+              title="Current Presentation Mode (Configurable in NDA Brief)"
+            >
+              {pitchMode === 'EXECUTIVE' ? 'EXEC DEMO' : 'DEEP-DIVE'}
+            </span>
+            <div className="px-2 py-0.5 rounded bg-black/40 border border-gray-800 text-gray-400 text-[10px]">
+              CLOCK: <strong className="text-gray-200">{uptimeStr}</strong>
+            </div>
           </div>
         </div>
       </div>
