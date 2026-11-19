@@ -70,10 +70,12 @@ const HeaderBar = memo(function HeaderBar({
                         <div className="flex items-center p-0.5 rounded-md bg-black/60 border border-gray-800">
                           <button
                             onClick={() => setMode('HIL_SIMULATOR')}
-                                  ? 'bg-cyan-600 text-white shadow-md shadow-cyan-600/30'
-                                  : 'text-gray-400 hover:text-gray-200'
-                                }`}
-            >
+                            className={`flex items-center gap-1 px-2 py-0.5 rounded text-[10.5px] font-semibold transition-all ${
+                              mode === 'HIL_SIMULATOR'
+                                ? 'bg-cyan-600 text-white shadow-md shadow-cyan-600/30'
+                                : 'text-gray-400 hover:text-gray-200'
+                            }`}
+                          >
               <Radio className="h-2.5 w-2.5" />
               HIL SIMULATOR
             </button>
