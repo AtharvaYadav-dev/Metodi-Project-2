@@ -34,8 +34,15 @@ export default function App() {
 
   // Partner NDA Briefing & Presentation Mode State
   const [isPartnerBriefOpen, setIsPartnerBriefOpen] = useState(false);
+  const [partnerBriefTab, setPartnerBriefTab] = useState('VALUE_PROP'); // 'VALUE_PROP' | 'SCOPE_MATRIX' | 'TECH_SPECS' | 'WALKTHROUGH'
+  const [partnerName, setPartnerName] = useState('Prospective OEM / Tier-1 Partner');
   const [ndaStatus, setNdaStatus] = useState('EXECUTED'); // 'EXECUTED' | 'UNDER_REVIEW'
   const [pitchMode, setPitchMode] = useState('EXECUTIVE'); // 'EXECUTIVE' | 'DEEP_DIVE'
+
+  const handleOpenPartnerBrief = (tab = 'VALUE_PROP') => {
+    setPartnerBriefTab(tab);
+    setIsPartnerBriefOpen(true);
+  };
 
   // HIL Physics Engine Instance
   const simRef = useRef(null);
@@ -280,7 +287,8 @@ export default function App() {
           onDisconnectSerial={handleDisconnectSerial}
           telemetry={telemetry}
           uptimeStr={formatUptime(uptimeSeconds)}
-          onOpenPartnerBrief={() => setIsPartnerBriefOpen(true)}
+          onOpenPartnerBrief={handleOpenPartnerBrief}
+          partnerName={partnerName}
           ndaStatus={ndaStatus}
           pitchMode={pitchMode}
         />
@@ -355,12 +363,19 @@ export default function App() {
               </div>
               <div className="flex items-center gap-2.5 flex-wrap">
                 <button
-                  onClick={() => setIsPartnerBriefOpen(true)}
+                  onClick={() => handleOpenPartnerBrief('VALUE_PROP')}
                   className="text-amber-400 hover:text-amber-300 flex items-center gap-1 transition-colors underline underline-offset-2"
-                  title="Open OEM / Autoven Partner Pitch Brief & NDA Guardrail"
+                  title="Open OEM & Tier-1 Partner Pitch Brief & NDA Guardrail"
                 >
                   <Lock className="h-2.5 w-2.5 text-amber-400" />
-                  <span>OEM PARTNER BRIEF (AUTOVEN NDA REQUIRED)</span>
+                  <span>OEM &amp; TIER-1 PARTNER BRIEF (MUTUAL NDA)</span>
+                </button>
+                <button
+                  onClick={() => handleOpenPartnerBrief('TECH_SPECS')}
+                  className="text-cyan-400 hover:text-cyan-300 flex items-center gap-1 transition-colors underline underline-offset-2"
+                  title="Open Live Interactive Technical Specifications & Operating Envelope"
+                >
+                  <span>TECH SPECS</span>
                 </button>
                 <span className="text-gray-600 hidden sm:inline">|</span>
                 <span>Target: ESP32 / STM32</span>
@@ -372,10 +387,16 @@ export default function App() {
             <PartnerBriefModal
               isOpen={isPartnerBriefOpen}
               onClose={() => setIsPartnerBriefOpen(false)}
+              initialTab={partnerBriefTab}
+              partnerName={partnerName}
+              setPartnerName={setPartnerName}
               ndaStatus={ndaStatus}
               setNdaStatus={setNdaStatus}
               pitchMode={pitchMode}
               setPitchMode={setPitchMode}
+              telemetry={telemetry}
+              setpoint={setpoint}
+              pidGains={pidGains}
             />
           </div>
           );

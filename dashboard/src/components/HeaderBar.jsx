@@ -17,6 +17,7 @@ import {
   ShieldCheck,
   Usb,
   Lock,
+  FileText,
   ShieldAlert
 } from 'lucide-react';
 
@@ -29,6 +30,7 @@ const HeaderBar = memo(function HeaderBar({
   telemetry,
   uptimeStr,
   onOpenPartnerBrief,
+  partnerName = 'OEM / TIER-1',
   ndaStatus = 'EXECUTED',
   pitchMode = 'EXECUTIVE'
 }) {
@@ -67,17 +69,28 @@ const HeaderBar = memo(function HeaderBar({
                 ASIL-B ISO 26262
               </span>
               {onOpenPartnerBrief && (
-                <button
-                  onClick={onOpenPartnerBrief}
-                  className="flex items-center gap-1 px-1.5 py-0.2 rounded bg-amber-950/80 hover:bg-amber-900 border border-amber-600 text-amber-300 text-[9px] font-mono font-semibold transition-all shadow-sm shadow-amber-950/50 ml-0.5"
-                  title="Open OEM / Autoven Partner Briefing & NDA Guardrail"
-                >
-                  <Lock className="h-2.5 w-2.5 text-amber-400" />
-                  <span>NDA BRIEF</span>
-                  <span className="px-1 rounded bg-amber-500/20 text-[8px] border border-amber-500/40 font-bold text-amber-200">
-                    AUTOVEN
-                  </span>
-                </button>
+                <div className="flex items-center gap-1 ml-0.5">
+                  <button
+                    onClick={() => onOpenPartnerBrief('VALUE_PROP')}
+                    className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-950/80 hover:bg-amber-900 border border-amber-600 text-amber-300 text-[9px] font-mono font-semibold transition-all shadow-sm shadow-amber-950/50"
+                    title="Open OEM & Tier-1 Partner Pitch Brief & NDA Guardrail"
+                  >
+                    <Lock className="h-2.5 w-2.5 text-amber-400" />
+                    <span>NDA BRIEF</span>
+                    <span className="px-1 rounded bg-amber-500/20 text-[8px] border border-amber-500/40 font-bold text-amber-200 uppercase truncate max-w-[85px]">
+                      {partnerName && partnerName !== 'Prospective OEM / Tier-1 Partner' ? partnerName : 'OEM / TIER-1'}
+                    </span>
+                  </button>
+
+                  <button
+                    onClick={() => onOpenPartnerBrief('TECH_SPECS')}
+                    className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-cyan-950/80 hover:bg-cyan-900 border border-cyan-600 text-cyan-300 text-[9px] font-mono font-semibold transition-all shadow-sm shadow-cyan-950/50"
+                    title="Open Live Interactive Technical Specifications & Operating Envelope"
+                  >
+                    <FileText className="h-2.5 w-2.5 text-cyan-400" />
+                    <span>TECH SPECS</span>
+                  </button>
+                </div>
               )}
             </div>
           </div>
