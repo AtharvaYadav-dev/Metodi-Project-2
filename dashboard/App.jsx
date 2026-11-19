@@ -32,14 +32,13 @@ export default function App() {
   // Hero Visualizer Mode: '3D' (Default) or '2D'
   const [visualMode, setVisualMode] = useState('3D');
 
-  // Partner NDA Briefing & Presentation Mode State
+  // Engineering Dossier & NDA Governance Modal State
   const [isPartnerBriefOpen, setIsPartnerBriefOpen] = useState(false);
-  const [partnerBriefTab, setPartnerBriefTab] = useState('VALUE_PROP'); // 'VALUE_PROP' | 'SCOPE_MATRIX' | 'TECH_SPECS' | 'WALKTHROUGH'
-  const [partnerName, setPartnerName] = useState('Prospective OEM / Tier-1 Partner');
+  const [partnerBriefTab, setPartnerBriefTab] = useState('ARCHITECTURE'); // 'ARCHITECTURE' | 'TECH_SPECS' | 'NDA_GOVERNANCE'
+  const [partnerName, setPartnerName] = useState('Partner / OEM');
   const [ndaStatus, setNdaStatus] = useState('EXECUTED'); // 'EXECUTED' | 'UNDER_REVIEW'
-  const [pitchMode, setPitchMode] = useState('EXECUTIVE'); // 'EXECUTIVE' | 'DEEP_DIVE'
 
-  const handleOpenPartnerBrief = (tab = 'VALUE_PROP') => {
+  const handleOpenPartnerBrief = (tab = 'ARCHITECTURE') => {
     setPartnerBriefTab(tab);
     setIsPartnerBriefOpen(true);
   };
@@ -290,7 +289,6 @@ export default function App() {
           onOpenPartnerBrief={handleOpenPartnerBrief}
           partnerName={partnerName}
           ndaStatus={ndaStatus}
-          pitchMode={pitchMode}
         />
 
             {/* 2. Main Two-Column Viewport with 100% Flat Viewport Lock */}
@@ -363,19 +361,19 @@ export default function App() {
               </div>
               <div className="flex items-center gap-2.5 flex-wrap">
                 <button
-                  onClick={() => handleOpenPartnerBrief('VALUE_PROP')}
+                  onClick={() => handleOpenPartnerBrief('NDA_GOVERNANCE')}
                   className="text-amber-400 hover:text-amber-300 flex items-center gap-1 transition-colors underline underline-offset-2"
-                  title="Open OEM & Tier-1 Partner Pitch Brief & NDA Guardrail"
+                  title="Open Confidentiality & Mutual NDA Governance Matrix"
                 >
                   <Lock className="h-2.5 w-2.5 text-amber-400" />
-                  <span>OEM &amp; TIER-1 PARTNER BRIEF (MUTUAL NDA)</span>
+                  <span>NDA &amp; IP GOVERNANCE</span>
                 </button>
                 <button
                   onClick={() => handleOpenPartnerBrief('TECH_SPECS')}
                   className="text-cyan-400 hover:text-cyan-300 flex items-center gap-1 transition-colors underline underline-offset-2"
                   title="Open Live Interactive Technical Specifications & Operating Envelope"
                 >
-                  <span>TECH SPECS</span>
+                  <span>TECHNICAL SPECIFICATIONS</span>
                 </button>
                 <span className="text-gray-600 hidden sm:inline">|</span>
                 <span>Target: ESP32 / STM32</span>
@@ -383,7 +381,7 @@ export default function App() {
               </div>
             </footer>
 
-            {/* OEM / Tier-1 Partner Briefing & NDA Modal */}
+            {/* Engineering Dossier, Live Technical Specs & NDA Governance Modal */}
             <PartnerBriefModal
               isOpen={isPartnerBriefOpen}
               onClose={() => setIsPartnerBriefOpen(false)}
@@ -392,8 +390,6 @@ export default function App() {
               setPartnerName={setPartnerName}
               ndaStatus={ndaStatus}
               setNdaStatus={setNdaStatus}
-              pitchMode={pitchMode}
-              setPitchMode={setPitchMode}
               telemetry={telemetry}
               setpoint={setpoint}
               pidGains={pidGains}

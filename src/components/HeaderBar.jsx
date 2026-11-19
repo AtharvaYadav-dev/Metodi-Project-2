@@ -31,8 +31,7 @@ const HeaderBar = memo(function HeaderBar({
   uptimeStr,
   onOpenPartnerBrief,
   partnerName = 'OEM / TIER-1',
-  ndaStatus = 'EXECUTED',
-  pitchMode = 'EXECUTIVE'
+  ndaStatus = 'EXECUTED'
 }) {
   const {
     state = 'IDLE_MODE',
@@ -71,14 +70,14 @@ const HeaderBar = memo(function HeaderBar({
               {onOpenPartnerBrief && (
                 <div className="flex items-center gap-1 ml-0.5">
                   <button
-                    onClick={() => onOpenPartnerBrief('VALUE_PROP')}
+                    onClick={() => onOpenPartnerBrief('ARCHITECTURE')}
                     className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-950/80 hover:bg-amber-900 border border-amber-600 text-amber-300 text-[9px] font-mono font-semibold transition-all shadow-sm shadow-amber-950/50"
-                    title="Open OEM & Tier-1 Partner Pitch Brief & NDA Guardrail"
+                    title="Open System Architecture & NDA Governance Dossier"
                   >
                     <Lock className="h-2.5 w-2.5 text-amber-400" />
-                    <span>NDA BRIEF</span>
+                    <span>NDA &amp; SPECS</span>
                     <span className="px-1 rounded bg-amber-500/20 text-[8px] border border-amber-500/40 font-bold text-amber-200 uppercase truncate max-w-[85px]">
-                      {partnerName && partnerName !== 'Prospective OEM / Tier-1 Partner' ? partnerName : 'OEM / TIER-1'}
+                      {partnerName && partnerName !== 'Partner / OEM' && partnerName !== 'Prospective OEM / Tier-1 Partner' ? partnerName : 'OEM / TIER-1'}
                     </span>
                   </button>
 
@@ -87,7 +86,7 @@ const HeaderBar = memo(function HeaderBar({
                     className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-cyan-950/80 hover:bg-cyan-900 border border-cyan-600 text-cyan-300 text-[9px] font-mono font-semibold transition-all shadow-sm shadow-cyan-950/50"
                     title="Open Live Interactive Technical Specifications & Operating Envelope"
                   >
-                    <FileText className="h-2.5 w-2.5 text-cyan-400" />
+                    <Cpu className="h-2.5 w-2.5 text-cyan-400" />
                     <span>TECH SPECS</span>
                   </button>
                 </div>
@@ -148,14 +147,10 @@ const HeaderBar = memo(function HeaderBar({
 
           <div className="flex items-center gap-1">
             <span
-              className={`px-1.5 py-0.5 rounded border text-[9.5px] font-mono font-semibold ${
-                pitchMode === 'EXECUTIVE'
-                  ? 'bg-cyan-950/80 border-cyan-700 text-cyan-300'
-                  : 'bg-purple-950/80 border-purple-700 text-purple-300'
-              }`}
-              title="Current Presentation Mode (Configurable in NDA Brief)"
+              className="px-1.5 py-0.5 rounded border border-cyan-800 bg-cyan-950/80 text-cyan-300 text-[9.5px] font-mono font-semibold"
+              title="Automotive Safety Integrity Level ISO 26262 Specification"
             >
-              {pitchMode === 'EXECUTIVE' ? 'EXEC DEMO' : 'DEEP-DIVE'}
+              ASIL-B READY
             </span>
             <div className="px-2 py-0.5 rounded bg-black/40 border border-gray-800 text-gray-400 text-[10px]">
               CLOCK: <strong className="text-gray-200">{uptimeStr}</strong>
