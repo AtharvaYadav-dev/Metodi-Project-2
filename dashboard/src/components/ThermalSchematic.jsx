@@ -1,7 +1,8 @@
 /**
  * @file ThermalSchematic.jsx
  * @brief Interactive 2D/2.5D Animated Thermal Schematic (Hero Visual)
- * @details 60fps Canvas renderer featuring:
+ * @details High-performance 60fps Canvas renderer featuring:
+ *          - Decoupled requestAnimationFrame loop (zero tear-down churn on React state updates)
  *          - Animated Venturi Flaps physically rotating 0° to 90°
  *          - Dynamic ram-air streamline particles reacting to vehicle speed and flap angle
  *          - Animated closed fluid loop with temperature-graded coolant lines and flow particles
@@ -9,50 +10,52 @@
  *          - Rotating fluid pump impeller and spinning radiator fan blades
  */
 
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, memo } from 'react';
 
-export default function ThermalSchematic({ telemetry }) {
+const ThermalSchematic = memo(function ThermalSchematic({ telemetry }) {
   const canvasRef = useRef(null);
   const animFrameIdRef = useRef(null);
+  const telemetryRef = useRef(telemetry);
+
+  // Keep telemetryRef updated synchronously without triggering canvas loop teardown
+  useEffect(() => {
+    telemetryRef.current = telemetry;
+  }, [telemetry]);
 
   // Particle memory across animation frames
   const airParticlesRef = useRef([]);
   const fluidParticlesRef = useRef([]);
   const rotationAngleRef = useRef(0);
 
+  // Initialize particles once on mount
   useEffect(() => {
-    // Initialize 55 streamline air particles
-    if (airParticlesRef.current.length === 0) {
-      const air = [];
-      for (let i = 0; i < 55; i++) {
-        air.push({
-          x: Math.random() * 320,
-          y: 70 + Math.random() * 260,
-          baseY: 70 + Math.random() * 260,
-          speedOffset: 0.8 + Math.random() * 0.5,
-          length: 12 + Math.random() * 18,
-          alpha: 0.3 + Math.random() * 0.6
-        });
-      }
-      airParticlesRef.current = air;
+    const air = [];
+    for (let i = 0; i < 48; i++) {
+      air.push({
+        x: Math.random() * 320,
+        y: 65 + Math.random() * 240,
+        baseY: 65 + Math.random() * 240,
+        speedOffset: 0.8 + Math.random() * 0.5,
+        length: 10 + Math.random() * 16,
+        alpha: 0.3 + Math.random() * 0.5
+      });
     }
+    airParticlesRef.current = air;
 
-    // Initialize 36 fluid loop particles
-    if (fluidParticlesRef.current.length === 0) {
-      const fluid = [];
-      for (let i = 0; i < 36; i++) {
-        fluid.push({
-          distance: (i / 36.0) // normalized position along loop [0, 1]
-        });
-      }
-      fluidParticlesRef.current = fluid;
+    const fluid = [];
+    for (let i = 0; i < 32; i++) {
+      fluid.push({
+        distance: i / 32.0 // normalized position along loop [0, 1]
+      });
     }
+    fluidParticlesRef.current = fluid;
   }, []);
 
+  // Continuous 60fps render loop decoupled from React state updates
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext('2d', { alpha: false });
 
     let lastTimestamp = performance.now();
 
@@ -60,11 +63,10 @@ export default function ThermalSchematic({ telemetry }) {
       const dt = Math.min((now - lastTimestamp) / 1000, 0.1);
       lastTimestamp = now;
 
-      // Ensure canvas internal resolution matches display size
       const width = canvas.width;
       const height = canvas.height;
 
-      // Extract current live telemetry
+      // Extract current live telemetry safely from ref
       const {
         temp_filt = 25.0,
         temp_raw = 25.0,
@@ -75,16 +77,16 @@ export default function ThermalSchematic({ telemetry }) {
         state = 'IDLE_MODE',
         aux_kw = 0.0,
         fault = null
-      } = telemetry || {};
+      } = telemetryRef.current || {};
 
-      // Clear Canvas with sleek aerospace background
+      // Clear Canvas
       ctx.fillStyle = '#080A10';
       ctx.fillRect(0, 0, width, height);
 
-      // Draw subtle CAD coordinate grid
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.03)';
+      // Subtle CAD grid
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.025)';
       ctx.lineWidth = 1;
-      const gridSize = 40;
+      const gridSize = 38;
       for (let x = 0; x < width; x += gridSize) {
         ctx.beginPath();
         ctx.moveTo(x, 0);
@@ -100,20 +102,19 @@ export default function ThermalSchematic({ telemetry }) {
 
       // Update rotation angle for pump & fans
       if (pump) {
-        rotationAngleRef.current += dt * (4.0 + (pwm_pct / 100.0) * 8.0);
+        rotationAngleRef.current += dt * (3.5 + (pwm_pct / 100.0) * 7.5);
       }
 
       // =======================================================================
       // 1. VEHICLE AERODYNAMIC COWL & VENTURI FLAP MECHANISM
       // =======================================================================
       const cowlStartX = 40;
-      const cowlYTop = 90;
-      const cowlYBottom = 330;
-      const venturiThroatX = 240;
-      const venturiThroatYTop = 130;
-      const venturiThroatYBottom = 290;
+      const cowlYTop = 85;
+      const cowlYBottom = 300;
+      const venturiThroatX = 230;
+      const venturiThroatYTop = 120;
+      const venturiThroatYBottom = 265;
 
-      // Draw Aero Diffuser Housing
       ctx.save();
       ctx.strokeStyle = 'rgba(75, 85, 99, 0.6)';
       ctx.lineWidth = 2;
@@ -121,27 +122,26 @@ export default function ThermalSchematic({ telemetry }) {
       // Upper cowl duct
       ctx.beginPath();
       ctx.moveTo(cowlStartX, cowlYTop);
-      ctx.bezierCurveTo(120, cowlYTop + 10, 180, venturiThroatYTop - 10, venturiThroatX, venturiThroatYTop);
+      ctx.bezierCurveTo(110, cowlYTop + 10, 170, venturiThroatYTop - 10, venturiThroatX, venturiThroatYTop);
       ctx.stroke();
 
       // Lower cowl duct
       ctx.beginPath();
       ctx.moveTo(cowlStartX, cowlYBottom);
-      ctx.bezierCurveTo(120, cowlYBottom - 10, 180, venturiThroatYBottom + 10, venturiThroatX, venturiThroatYBottom);
+      ctx.bezierCurveTo(110, cowlYBottom - 10, 170, venturiThroatYBottom + 10, venturiThroatX, venturiThroatYBottom);
       ctx.stroke();
 
       // Flap Hinge Point
-      const hingeX = 140;
-      const hingeY = cowlYTop + 24;
-      const flapLength = 65;
+      const hingeX = 135;
+      const hingeY = cowlYTop + 22;
+      const flapLength = 58;
       const flapRad = (flap_deg * Math.PI) / 180;
 
-      // Flap physical angle: 0° is horizontal (sealed along intake), 90° is angled down scooping air
       const flapEndX = hingeX + Math.cos(flapRad) * flapLength;
       const flapEndY = hingeY + Math.sin(flapRad) * flapLength;
 
       // Upper Flap Blade
-      ctx.lineWidth = 6;
+      ctx.lineWidth = 5;
       ctx.strokeStyle = fault ? '#EF4444' : (flap_deg > 0 ? '#06B6D4' : '#64748B');
       ctx.beginPath();
       ctx.moveTo(hingeX, hingeY);
@@ -151,21 +151,21 @@ export default function ThermalSchematic({ telemetry }) {
       // Flap Hinge Pin
       ctx.fillStyle = '#E2E8F0';
       ctx.beginPath();
-      ctx.arc(hingeX, hingeY, 4.5, 0, Math.PI * 2);
+      ctx.arc(hingeX, hingeY, 4, 0, Math.PI * 2);
       ctx.fill();
 
-      // Flap mechanical hydraulic actuator linkage
-      ctx.strokeStyle = 'rgba(148, 163, 184, 0.5)';
-      ctx.lineWidth = 2;
+      // Flap linkage strut
+      ctx.strokeStyle = 'rgba(148, 163, 184, 0.4)';
+      ctx.lineWidth = 1.5;
       ctx.beginPath();
-      ctx.moveTo(hingeX - 25, hingeY - 15);
-      ctx.lineTo(hingeX + Math.cos(flapRad) * 30, hingeY + Math.sin(flapRad) * 30);
+      ctx.moveTo(hingeX - 22, hingeY - 12);
+      ctx.lineTo(hingeX + Math.cos(flapRad) * 26, hingeY + Math.sin(flapRad) * 26);
       ctx.stroke();
 
       // Lower Symmetrical Flap
-      const lowerHingeY = cowlYBottom - 24;
+      const lowerHingeY = cowlYBottom - 22;
       const lowerFlapEndY = lowerHingeY - Math.sin(flapRad) * flapLength;
-      ctx.lineWidth = 6;
+      ctx.lineWidth = 5;
       ctx.strokeStyle = fault ? '#EF4444' : (flap_deg > 0 ? '#06B6D4' : '#64748B');
       ctx.beginPath();
       ctx.moveTo(hingeX, lowerHingeY);
@@ -174,44 +174,35 @@ export default function ThermalSchematic({ telemetry }) {
 
       ctx.fillStyle = '#E2E8F0';
       ctx.beginPath();
-      ctx.arc(hingeX, lowerHingeY, 4.5, 0, Math.PI * 2);
+      ctx.arc(hingeX, lowerHingeY, 4, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
 
       // =======================================================================
-      // 2. AIRFLOW STREAMLINE PARTICLES (RAM-AIR SPEED & FLAP DEFLECTION)
+      // 2. AIRFLOW STREAMLINE PARTICLES
       // =======================================================================
       ctx.save();
-      const airSpeedFactor = (speed_kmh / 100.0) * 450 * dt;
+      const airSpeedFactor = (speed_kmh / 100.0) * 400 * dt;
 
       airParticlesRef.current.forEach((p) => {
-        // Move particle rightward
         p.x += (airSpeedFactor + 0.3) * p.speedOffset;
 
-        // Path deflection based on flap opening
         const isNearIntake = p.x > cowlStartX && p.x < venturiThroatX;
         if (isNearIntake) {
           if (flap_deg > 5) {
-            // Flaps open: funnel air particles into venturi throat (Venturi constriction acceleration)
-            const targetY = 210 + (p.baseY - 210) * 0.45;
+            const targetY = 192 + (p.baseY - 192) * 0.45;
             p.y += (targetY - p.y) * 0.08;
           } else {
-            // Flaps closed: deflect air up or down around aerodynamic cowl boundary layer
-            if (p.baseY < 210) {
-              p.y -= 2.2;
-            } else {
-              p.y += 2.2;
-            }
+            if (p.baseY < 192) p.y -= 2.0;
+            else p.y += 2.0;
           }
         }
 
-        // Reset particle when it travels past radiator or off screen
-        if (p.x > 380) {
-          p.x = 20 + Math.random() * 40;
+        if (p.x > 370) {
+          p.x = 20 + Math.random() * 35;
           p.y = p.baseY;
         }
 
-        // Draw particle stream line
         const gradient = ctx.createLinearGradient(p.x - p.length, p.y, p.x, p.y);
         gradient.addColorStop(0, 'rgba(6, 182, 212, 0)');
         gradient.addColorStop(1, `rgba(165, 243, 252, ${p.alpha})`);
@@ -226,14 +217,13 @@ export default function ThermalSchematic({ telemetry }) {
       ctx.restore();
 
       // =======================================================================
-      // 3. RADIATOR & REFRIGERATION CHILLER CORE
+      // 3. RADIATOR & FANS
       // =======================================================================
-      const radX = 265;
-      const radY = 135;
-      const radW = 32;
-      const radH = 150;
+      const radX = 255;
+      const radY = 125;
+      const radW = 28;
+      const radH = 135;
 
-      // Radiator Core Fins
       ctx.save();
       ctx.fillStyle = '#1E293B';
       ctx.strokeStyle = '#334155';
@@ -241,21 +231,21 @@ export default function ThermalSchematic({ telemetry }) {
       ctx.fillRect(radX, radY, radW, radH);
       ctx.strokeRect(radX, radY, radW, radH);
 
-      // Heat exchanger fin slats
+      // Fin slats
       ctx.strokeStyle = flap_deg > 0 ? 'rgba(6, 182, 212, 0.4)' : 'rgba(100, 116, 139, 0.25)';
       ctx.lineWidth = 1;
-      for (let fy = radY + 6; fy < radY + radH - 4; fy += 6) {
+      for (let fy = radY + 5; fy < radY + radH - 3; fy += 5) {
         ctx.beginPath();
-        ctx.moveTo(radX + 3, fy);
-        ctx.lineTo(radX + radW - 3, fy);
+        ctx.moveTo(radX + 2, fy);
+        ctx.lineTo(radX + radW - 2, fy);
         ctx.stroke();
       }
 
-      // Radiator Cooling Fan Behind Core
-      const fanCenterX = radX + radW + 16;
-      const fanCenterY1 = radY + 38;
-      const fanCenterY2 = radY + 112;
-      const fanRadius = 24;
+      // Fans
+      const fanCenterX = radX + radW + 15;
+      const fanCenterY1 = radY + 34;
+      const fanCenterY2 = radY + 101;
+      const fanRadius = 21;
 
       const drawFan = (cx, cy) => {
         ctx.fillStyle = '#0F172A';
@@ -265,7 +255,6 @@ export default function ThermalSchematic({ telemetry }) {
         ctx.fill();
         ctx.stroke();
 
-        // Spinning fan blades
         const fanRot = rotationAngleRef.current * (pwm_pct / 40.0 + 0.2);
         ctx.save();
         ctx.translate(cx, cy);
@@ -273,7 +262,7 @@ export default function ThermalSchematic({ telemetry }) {
         ctx.fillStyle = pwm_pct > 0 ? '#38BDF8' : '#64748B';
         for (let b = 0; b < 4; b++) {
           ctx.beginPath();
-          ctx.ellipse(0, 11, 4.5, 11, 0, 0, Math.PI * 2);
+          ctx.ellipse(0, 9.5, 4, 9.5, 0, 0, Math.PI * 2);
           ctx.fill();
           ctx.rotate(Math.PI / 2);
         }
@@ -287,70 +276,59 @@ export default function ThermalSchematic({ telemetry }) {
       // =======================================================================
       // 4. CLOSED FLUID COOLING PIPING CIRCUIT
       // =======================================================================
-      // Circuit path:
-      // (1) Radiator Outlet: (330, 260) -> (480, 260)
-      // (2) To Pump Inlet: (480, 260) -> (530, 310)
-      // (3) Through Pump: (530, 310) -> (600, 310)
-      // (4) Into Battery Cold Plate: (600, 310) -> (670, 260)
-      // (5) Return from Battery: (910, 155) -> (910, 100) -> (300, 100) -> (300, 135)
-      
-      const pipeSupplyColor = '#00F5D4'; // Electric Cyan (Cold supply)
-      const pipeReturnColor = getTempColor(temp_filt); // Dynamic temp return
+      const pipeSupplyColor = '#00F5D4';
+      const pipeReturnColor = getTempColor(temp_filt);
 
       ctx.save();
-      ctx.lineWidth = 10;
+      ctx.lineWidth = 8;
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
 
-      // (A) Supply Line (Cyan)
+      // (A) Supply Line
       ctx.strokeStyle = pump ? 'rgba(0, 245, 212, 0.7)' : 'rgba(0, 245, 212, 0.25)';
       ctx.beginPath();
-      ctx.moveTo(radX + radW + 30, radY + 115); // Radiator outlet
-      ctx.lineTo(440, radY + 115);
-      ctx.lineTo(470, 315);
-      ctx.lineTo(540, 315); // Into Pump
+      ctx.moveTo(radX + radW + 28, radY + 105);
+      ctx.lineTo(430, radY + 105);
+      ctx.lineTo(460, 290);
+      ctx.lineTo(530, 290);
       ctx.stroke();
 
-      // Pump to Battery inlet
       ctx.beginPath();
-      ctx.moveTo(580, 315);
-      ctx.lineTo(650, 315);
-      ctx.lineTo(670, 290);
-      ctx.lineTo(690, 290); // Battery cold plate inlet
+      ctx.moveTo(570, 290);
+      ctx.lineTo(640, 290);
+      ctx.lineTo(660, 265);
+      ctx.lineTo(680, 265);
       ctx.stroke();
 
-      // (B) Return Line (Temperature-graded)
+      // (B) Return Line
       ctx.strokeStyle = pump ? pipeReturnColor : 'rgba(100, 116, 139, 0.25)';
       ctx.beginPath();
-      ctx.moveTo(930, 135); // Battery outlet
-      ctx.lineTo(950, 135);
-      ctx.lineTo(950, 80);
-      ctx.lineTo(radX + 16, 80);
-      ctx.lineTo(radX + 16, radY);
+      ctx.moveTo(920, 125);
+      ctx.lineTo(940, 125);
+      ctx.lineTo(940, 75);
+      ctx.lineTo(radX + 14, 75);
+      ctx.lineTo(radX + 14, radY);
       ctx.stroke();
 
-      // Inner glow line
-      ctx.lineWidth = 3;
+      ctx.lineWidth = 2.5;
       ctx.strokeStyle = pump ? '#FFFFFF' : 'rgba(255, 255, 255, 0.15)';
       ctx.stroke();
       ctx.restore();
 
       // =======================================================================
-      // 5. ANIMATED FLUID PARTICLES (CIRCULATING WHEN PUMP IS ACTIVE)
+      // 5. FLUID PARTICLES
       // =======================================================================
       if (pump) {
         ctx.save();
-        const flowSpeed = (0.08 + (pwm_pct / 100.0) * 0.18) * dt;
+        const flowSpeed = (0.07 + (pwm_pct / 100.0) * 0.16) * dt;
 
         fluidParticlesRef.current.forEach((fp) => {
           fp.distance = (fp.distance + flowSpeed) % 1.0;
-          const pos = getLoopCoordinates(fp.distance, radX, radY, radW);
+          const pos = getLoopCoordinates(fp.distance, radX, radY);
 
           ctx.fillStyle = pos.isReturn ? pipeReturnColor : '#A7F3D0';
-          ctx.shadowColor = pos.isReturn ? pipeReturnColor : '#34D399';
-          ctx.shadowBlur = 8;
           ctx.beginPath();
-          ctx.arc(pos.x, pos.y, 4, 0, Math.PI * 2);
+          ctx.arc(pos.x, pos.y, 3.5, 0, Math.PI * 2);
           ctx.fill();
         });
         ctx.restore();
@@ -359,15 +337,14 @@ export default function ThermalSchematic({ telemetry }) {
       // =======================================================================
       // 6. 800V ACTIVE FLUID CIRCULATION PUMP
       // =======================================================================
-      const pumpX = 560;
-      const pumpY = 315;
-      const pumpRadius = 26;
+      const pumpX = 550;
+      const pumpY = 290;
+      const pumpRadius = 23;
 
       ctx.save();
-      // Pump Housing
       ctx.fillStyle = pump ? '#064E3B' : '#1E293B';
       ctx.strokeStyle = pump ? '#10B981' : '#475569';
-      ctx.lineWidth = 2.5;
+      ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.arc(pumpX, pumpY, pumpRadius, 0, Math.PI * 2);
       ctx.fill();
@@ -377,141 +354,116 @@ export default function ThermalSchematic({ telemetry }) {
       ctx.save();
       ctx.translate(pumpX, pumpY);
       if (pump) ctx.rotate(rotationAngleRef.current * 3.0);
-      ctx.fillStyle = pump ? '#34D399' : '#64748B';
+      ctx.strokeStyle = pump ? '#34D399' : '#64748B';
+      ctx.lineWidth = 2.5;
       for (let i = 0; i < 6; i++) {
         ctx.beginPath();
         ctx.moveTo(0, 0);
-        ctx.lineTo(Math.cos(i * Math.PI / 3) * (pumpRadius - 4), Math.sin(i * Math.PI / 3) * (pumpRadius - 4));
-        ctx.lineWidth = 3;
-        ctx.strokeStyle = pump ? '#34D399' : '#64748B';
+        ctx.lineTo(Math.cos(i * Math.PI / 3) * (pumpRadius - 3), Math.sin(i * Math.PI / 3) * (pumpRadius - 3));
         ctx.stroke();
       }
       ctx.restore();
 
-      // Pump Center Hub
       ctx.fillStyle = '#E2E8F0';
       ctx.beginPath();
-      ctx.arc(pumpX, pumpY, 5, 0, Math.PI * 2);
+      ctx.arc(pumpX, pumpY, 4, 0, Math.PI * 2);
       ctx.fill();
 
-      // Pump Label
       ctx.fillStyle = pump ? '#34D399' : '#94A3B8';
-      ctx.font = '10px JetBrains Mono, monospace';
+      ctx.font = '9.5px JetBrains Mono, monospace';
       ctx.textAlign = 'center';
-      ctx.fillText(pump ? 'PUMP ACTIVE (800V)' : 'PUMP OFF (0W)', pumpX, pumpY + pumpRadius + 16);
+      ctx.fillText(pump ? 'PUMP ACTIVE (800V)' : 'PUMP OFF (0W)', pumpX, pumpY + pumpRadius + 14);
       ctx.restore();
 
       // =======================================================================
-      // 7. 2.5D EV BATTERY PACK (16 THERMAL CELLS HEAT MAP)
+      // 7. 2.5D EV BATTERY PACK (16 CELLS)
       // =======================================================================
-      const packX = 680;
-      const packY = 115;
-      const packW = 260;
-      const packH = 190;
+      const packX = 670;
+      const packY = 105;
+      const packW = 250;
+      const packH = 175;
 
       ctx.save();
-      // Outer Battery Tray / Thermal Enclosure
       ctx.fillStyle = '#0D111E';
       ctx.strokeStyle = fault ? '#EF4444' : (state === 'ACTIVE_FLUID_LOOP' ? '#06B6D4' : '#334155');
       ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.roundRect(packX, packY, packW, packH, 8);
+      ctx.roundRect(packX, packY, packW, packH, 6);
       ctx.fill();
       ctx.stroke();
 
-      // Cold Plate Aluminum Heatsink Base
+      // Cold plate base
       ctx.fillStyle = '#1E293B';
-      ctx.fillRect(packX + 8, packY + packH - 12, packW - 16, 8);
+      ctx.fillRect(packX + 8, packY + packH - 10, packW - 16, 7);
 
-      // Render 16 Individual Prismatic Thermal Cells (4x4 Matrix)
       const cols = 4;
       const rows = 4;
-      const cellPadX = 8;
-      const cellPadY = 8;
-      const cellW = (packW - 32 - (cols - 1) * cellPadX) / cols;
-      const cellH = (packH - 36 - (rows - 1) * cellPadY) / rows;
+      const cellPadX = 7;
+      const cellPadY = 7;
+      const cellW = (packW - 30 - (cols - 1) * cellPadX) / cols;
+      const cellH = (packH - 32 - (rows - 1) * cellPadY) / rows;
 
       for (let r = 0; r < rows; r++) {
         for (let c = 0; c < cols; c++) {
-          const cx = packX + 16 + c * (cellW + cellPadX);
-          const cy = packY + 14 + r * (cellH + cellPadY);
+          const cx = packX + 15 + c * (cellW + cellPadX);
+          const cy = packY + 12 + r * (cellH + cellPadY);
 
-          // Simulate slight thermal gradient (inner cells hotter than outer edge)
           const coreDist = Math.abs(c - 1.5) + Math.abs(r - 1.5);
-          const cellTemp = temp_filt + (2.5 - coreDist * 0.9);
-
+          const cellTemp = temp_filt + (2.2 - coreDist * 0.8);
           const cellColor = getTempColor(cellTemp);
 
-          // Cell Body
           ctx.fillStyle = cellColor;
-          ctx.shadowColor = cellColor;
-          ctx.shadowBlur = fault ? 12 : 4;
           ctx.beginPath();
-          ctx.roundRect(cx, cy, cellW, cellH, 4);
+          ctx.roundRect(cx, cy, cellW, cellH, 3);
           ctx.fill();
 
-          // Cell + / - Terminal busbar indicators
-          ctx.shadowBlur = 0;
           ctx.fillStyle = '#0F172A';
-          ctx.fillRect(cx + 6, cy + 3, cellW - 12, 3);
+          ctx.fillRect(cx + 5, cy + 2.5, cellW - 10, 2.5);
 
-          // Local Cell Temperature text
           ctx.fillStyle = '#090A0F';
-          ctx.font = 'bold 9px JetBrains Mono, monospace';
+          ctx.font = 'bold 8.5px JetBrains Mono, monospace';
           ctx.textAlign = 'center';
           ctx.fillText(`${cellTemp.toFixed(0)}°`, cx + cellW / 2, cy + cellH / 2 + 3);
         }
       }
       ctx.restore();
 
-      // Battery Core Readout Badge
+      // Core Temp Badge
       ctx.save();
       ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
       ctx.strokeStyle = fault ? '#EF4444' : '#38BDF8';
-      ctx.lineWidth = 1.5;
-      const badgeW = 160;
-      const badgeH = 28;
+      ctx.lineWidth = 1.2;
+      const badgeW = 150;
+      const badgeH = 24;
       const badgeX = packX + (packW - badgeW) / 2;
-      const badgeY = packY - 34;
+      const badgeY = packY - 28;
       ctx.beginPath();
-      ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 6);
+      ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 5);
       ctx.fill();
       ctx.stroke();
 
       ctx.fillStyle = fault ? '#F87171' : '#E0F2FE';
-      ctx.font = 'bold 11px JetBrains Mono, monospace';
+      ctx.font = 'bold 10px JetBrains Mono, monospace';
       ctx.textAlign = 'center';
-      ctx.fillText(`PACK CORE: ${temp_filt.toFixed(1)}°C (RAW: ${temp_raw.toFixed(1)}°C)`, badgeX + badgeW / 2, badgeY + 18);
+      ctx.fillText(`PACK CORE: ${temp_filt.toFixed(1)}°C`, badgeX + badgeW / 2, badgeY + 16);
       ctx.restore();
 
-      // =======================================================================
-      // 8. ON-CANVAS HUD LABELS & FLIGHT TELEMETRY ANNOTATIONS
-      // =======================================================================
+      // Top HUD Labels
       ctx.save();
-      // Flap Angle Indicator
       ctx.fillStyle = '#06B6D4';
-      ctx.font = 'bold 11px JetBrains Mono, monospace';
+      ctx.font = 'bold 10px JetBrains Mono, monospace';
       ctx.textAlign = 'left';
-      ctx.fillText(`VENTURI FLAPS: ${flap_deg}°`, cowlStartX, cowlYTop - 14);
+      ctx.fillText(`VENTURI FLAPS: ${flap_deg}°`, cowlStartX, cowlYTop - 12);
 
-      ctx.font = '10px JetBrains Mono, monospace';
-      ctx.fillStyle = '#94A3B8';
-      ctx.fillText(`RAM PRESSURE: ${(speed_kmh * 0.45).toFixed(0)} Pa`, cowlStartX, cowlYTop);
-
-      // Radiator Core Annotation
       ctx.fillStyle = '#38BDF8';
-      ctx.fillText(`RADIATOR / FAN`, radX - 10, radY - 14);
-      ctx.fillStyle = '#64748B';
-      ctx.fillText(`PWM: ${pwm_pct.toFixed(0)}%`, radX - 10, radY);
+      ctx.fillText(`RADIATOR / FAN`, radX - 8, radY - 12);
 
-      // Passive Energy Savings Tag
       if (aux_kw > 0) {
         ctx.fillStyle = '#10B981';
-        ctx.font = 'bold 11px JetBrains Mono, monospace';
+        ctx.font = 'bold 10.5px JetBrains Mono, monospace';
         ctx.textAlign = 'right';
-        ctx.fillText(`⚡ PASSIVE AERO SAVING: +${aux_kw.toFixed(2)} kW`, width - 20, 30);
+        ctx.fillText(`⚡ PASSIVE SAVING: +${aux_kw.toFixed(2)} kW`, width - 15, 26);
       }
-
       ctx.restore();
 
       animFrameIdRef.current = requestAnimationFrame(render);
@@ -524,106 +476,96 @@ export default function ThermalSchematic({ telemetry }) {
         cancelAnimationFrame(animFrameIdRef.current);
       }
     };
-  }, [telemetry]);
+  }, []);
 
   return (
-    <div className="relative w-full rounded-xl border border-cyan-950/70 bg-[#090C15] p-3 shadow-2xl backdrop-blur-md overflow-hidden">
+    <div className="relative w-full rounded-xl border border-cyan-950/70 bg-[#090C15] p-2 shadow-2xl backdrop-blur-md overflow-hidden flex flex-col flex-shrink-0">
       {/* Top Banner Ribbon */}
-      <div className="flex items-center justify-between border-b border-gray-800/80 pb-2 mb-2 px-2 text-xs">
+      <div className="flex items-center justify-between border-b border-gray-800/80 pb-1.5 mb-1.5 px-1.5 text-xs flex-shrink-0">
         <div className="flex items-center gap-2">
-          <span className="inline-block h-2.5 w-2.5 rounded-full bg-cyan-400 animate-ping" />
-          <span className="font-heading font-semibold text-gray-200 tracking-wider text-sm">
-            2D/2.5D INTERACTIVE AEROTHERM PHYSICAL CHASSIS SCHEMATIC
+          <span className="inline-block h-2 w-2 rounded-full bg-cyan-400 animate-ping" />
+          <span className="font-heading font-semibold text-gray-200 tracking-wider text-xs">
+            2D/2.5D AEROTHERM CHASSIS SCHEMATIC
           </span>
         </div>
-        <div className="flex items-center gap-4 text-gray-400 font-mono text-[11px]">
-          <span>RAM-AIR: <strong className="text-cyan-300">{telemetry?.speed_kmh || 0} km/h</strong></span>
+        <div className="flex items-center gap-3 text-gray-400 font-mono text-[10.5px]">
+          <span>RAM-AIR: <strong className="text-cyan-300">{(telemetry?.speed_kmh || 0).toFixed(0)} km/h</strong></span>
           <span>FLAP: <strong className="text-cyan-300">{telemetry?.flap_deg || 0}°</strong></span>
           <span>PUMP: <strong className={telemetry?.pump ? 'text-emerald-400' : 'text-gray-500'}>
-            {telemetry?.pump ? 'ENGAGED' : 'STANDBY'}
+            {telemetry?.pump ? 'ACTIVE' : 'STANDBY'}
           </strong></span>
-          <span>PWM: <strong className="text-purple-400">{telemetry?.pwm_pct || 0}%</strong></span>
+          <span>PWM: <strong className="text-purple-400">{(telemetry?.pwm_pct || 0).toFixed(1)}%</strong></span>
         </div>
       </div>
 
-      {/* Main Canvas Viewport */}
-      <div className="w-full flex justify-center bg-black/40 rounded-lg overflow-hidden border border-gray-900">
+      {/* Main Canvas Viewport with strict sizing */}
+      <div className="w-full flex justify-center bg-black/40 rounded-lg overflow-hidden border border-gray-900 flex-1 min-h-[220px]">
         <canvas
           ref={canvasRef}
           width={1000}
-          height={420}
+          height={370}
           className="w-full max-w-[1000px] h-auto object-contain cursor-crosshair"
         />
       </div>
 
       {/* Bottom Visual Legend */}
-      <div className="grid grid-cols-4 gap-2 mt-2 pt-2 border-t border-gray-800/60 text-[11px] text-gray-400 px-2 font-mono">
-        <div className="flex items-center gap-2">
-          <span className="h-2.5 w-2.5 rounded-full bg-cyan-400 inline-block" />
-          <span>Venturi Flaps (0°-90° Ram Scoop)</span>
+      <div className="grid grid-cols-4 gap-1.5 mt-1.5 pt-1.5 border-t border-gray-800/60 text-[10px] text-gray-400 px-1 font-mono flex-shrink-0">
+        <div className="flex items-center gap-1.5">
+          <span className="h-2 w-2 rounded-full bg-cyan-400 inline-block" />
+          <span>Venturi Flaps (0°-90°)</span>
         </div>
-        <div className="flex items-center gap-2">
-          <span className="h-2.5 w-2.5 rounded-full bg-emerald-400 inline-block" />
-          <span>800V Fluid Pump (Zero aux draw in P1)</span>
+        <div className="flex items-center gap-1.5">
+          <span className="h-2 w-2 rounded-full bg-emerald-400 inline-block" />
+          <span>800V Fluid Pump</span>
         </div>
-        <div className="flex items-center gap-2">
-          <span className="h-2.5 w-2.5 rounded-full bg-amber-400 inline-block" />
-          <span>Battery 16-Cell Dynamic Heat Map</span>
+        <div className="flex items-center gap-1.5">
+          <span className="h-2 w-2 rounded-full bg-amber-400 inline-block" />
+          <span>16-Cell Heat Map</span>
         </div>
-        <div className="flex items-center gap-2">
-          <span className="h-2.5 w-2.5 rounded-full bg-purple-400 inline-block" />
-          <span>PID Chiller Actuation (0-100%)</span>
+        <div className="flex items-center gap-1.5">
+          <span className="h-2 w-2 rounded-full bg-purple-400 inline-block" />
+          <span>PID Chiller (0-100%)</span>
         </div>
       </div>
     </div>
   );
-}
+});
 
-// Utility: Maps temperature to smooth color gradient
+export default ThermalSchematic;
+
 function getTempColor(temp) {
-  if (temp < 40.0) {
-    // Deep Cyan
-    return '#06B6D4';
-  } else if (temp < 65.0) {
-    // Cyan to Emerald
+  if (temp < 40.0) return '#06B6D4';
+  if (temp < 65.0) {
     const ratio = (temp - 40.0) / 25.0;
     return ratio > 0.5 ? '#10B981' : '#0EA5E9';
-  } else if (temp < 85.0) {
-    // Emerald to Amber
+  }
+  if (temp < 85.0) {
     const ratio = (temp - 65.0) / 20.0;
     return ratio > 0.5 ? '#F59E0B' : '#EAB308';
-  } else if (temp < 110.0) {
-    // Amber to Vivid Red
+  }
+  if (temp < 110.0) {
     const ratio = (temp - 85.0) / 25.0;
     return ratio > 0.5 ? '#EF4444' : '#F97316';
-  } else {
-    // Critical Crimson Runaway
-    return '#FF0054';
   }
+  return '#FF0054';
 }
 
-// Utility: Maps normalized loop distance [0, 1] to (x, y) along fluid circuit
-function getLoopCoordinates(dist, radX, radY, radW) {
-  // Total normalized segments:
-  // 0.00 -> 0.25: Radiator out -> down to pump
-  // 0.25 -> 0.50: Through pump into battery cold plate
-  // 0.50 -> 0.75: Flowing across battery pack cold plate
-  // 0.75 -> 1.00: Return conduit back to radiator top inlet
+function getLoopCoordinates(dist, radX, radY) {
   if (dist < 0.25) {
     const t = dist / 0.25;
-    return { x: 330 + t * 210, y: radY + 115 + t * 65, isReturn: false };
+    return { x: 310 + t * 220, y: radY + 105 + t * 60, isReturn: false };
   } else if (dist < 0.50) {
     const t = (dist - 0.25) / 0.25;
-    return { x: 540 + t * 150, y: 315 - t * 25, isReturn: false };
+    return { x: 530 + t * 150, y: 290 - t * 25, isReturn: false };
   } else if (dist < 0.75) {
     const t = (dist - 0.50) / 0.25;
-    return { x: 690 + t * 240, y: 290 - t * 155, isReturn: true };
+    return { x: 680 + t * 240, y: 265 - t * 140, isReturn: true };
   } else {
     const t = (dist - 0.75) / 0.25;
     if (t < 0.8) {
-      return { x: 930 - (t / 0.8) * (930 - radX - 16), y: 80, isReturn: true };
+      return { x: 920 - (t / 0.8) * (920 - radX - 14), y: 75, isReturn: true };
     } else {
-      return { x: radX + 16, y: 80 + ((t - 0.8) / 0.2) * (radY - 80), isReturn: true };
+      return { x: radX + 14, y: 75 + ((t - 0.8) / 0.2) * (radY - 75), isReturn: true };
     }
   }
 }

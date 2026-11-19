@@ -424,7 +424,10 @@
     const ctx = canvas.getContext('2d');
     const chartCanvas = document.getElementById('chartCanvas');
     const cctx = chartCanvas.getContext('2d');
-    const serialBox = document.getElementById('serialBox');
+    let isSerialNearBottom = true;
+    serialBox.addEventListener('scroll', () => {
+      isSerialNearBottom = (serialBox.scrollHeight - serialBox.scrollTop - serialBox.clientHeight < 35);
+    });
 
     function drawSchematic(pkt, dt) {
       const w = canvas.width, h = canvas.height;
@@ -608,7 +611,9 @@
         line.className = pkt.fault ? 'text-red-400 font-bold' : pkt.state === 'ACTIVE_FLUID_LOOP' ? 'text-amber-300' : 'text-cyan-300';
         serialBox.appendChild(line);
         if (serialBox.children.length > 50) serialBox.removeChild(serialBox.firstChild);
-        serialBox.scrollTop = serialBox.scrollHeight;
+        if (isSerialNearBottom) {
+          serialBox.scrollTop = serialBox.scrollHeight;
+        }
       }
 
       requestAnimationFrame(loop);

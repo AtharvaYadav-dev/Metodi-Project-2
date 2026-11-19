@@ -3,13 +3,14 @@
 @tailwind utilities;
 
 @layer base {
-  body {
+  html, body, #root {
+    height: 100%;
     margin: 0;
     padding: 0;
-    background-color: #090A0F;
+    overscroll-behavior: none;
+    background-color: #07090E;
     color: #D1D5DB;
     font-family: 'JetBrains Mono', Consolas, 'Courier New', monospace;
-    overflow-x: hidden;
   }
 
   h1, h2, h3, h4, .font-heading {
@@ -20,32 +21,40 @@
 
 /* Custom dark aerospace scrollbar */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #0d0f17;
+  background: #090C15;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #1f293d;
-  border-radius: 3px;
+  background: #1E293B;
+  border-radius: 2.5px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #06b6d4;
+  background: #06B6D4;
 }
 
-/* Pulsing radar and indicator effects */
+/* GPU Acceleration utility classes */
+.gpu-layer {
+  transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
+  will-change: transform, opacity;
+}
+
+/* Pulsing radar and indicator effects using composite-only properties */
 @keyframes radar-pulse {
-  0% { transform: scale(0.95); opacity: 0.8; }
-  50% { transform: scale(1.05); opacity: 1; }
-  100% { transform: scale(0.95); opacity: 0.8; }
+  0% { transform: scale3d(0.95, 0.95, 1); opacity: 0.8; }
+  50% { transform: scale3d(1.05, 1.05, 1); opacity: 1; }
+  100% { transform: scale3d(0.95, 0.95, 1); opacity: 0.8; }
 }
 
 .animate-radar-pulse {
   animation: radar-pulse 2s infinite ease-in-out;
+  transform-origin: center center;
 }
 
 @keyframes flow-dash {
