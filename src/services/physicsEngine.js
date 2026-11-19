@@ -225,25 +225,43 @@ export class HilSimulator {
     setTimeout(() => { this.noiseBurstActive = false; }, durationMs);
   }
 
-  resetFault() {
-    if (this.trueCoreTemp >= (THERMAL_THRESHOLDS.T_CRIT - 5.0)) {
-      return false; // Still dangerously hot
-    }
+  resetFault(forceCooldown = true) {
     this.disconnectActive = false;
     this.runawayActive = false;
+    this.noiseBurstActive = false;
     this.manualFault = null;
     this.faultMessage = null;
+
+    // 1. If pack temperature was pushed into thermal runaway or critical bounds (> 100°C),
+    // safely restore core temperature to normal operating setpoint
+    if (forceCooldown || this.trueCoreTemp >= (THERMAL_THRESHOLDS.T_CRIT - 2.0)) {
+      this.trueCoreTemp = Math.min(this.trueCoreTemp, this.setpoint || 75.0);
+    }
+
+    // 2. Completely reset circular buffer filter: clears fault flag & fills window with safe temperature
+    this.filter.reset(this.trueCoreTemp);
+
+    // 3. Reset PID controller integral/derivative terms to prevent windup bump
     this.pid.reset();
 
-    // Re-evaluate state
+    // 4. Deterministically re-evaluate state & actuator outputs
     const cur = this.filter.filteredValue;
     if (cur < THERMAL_THRESHOLDS.T1) {
       this.state = SYSTEM_STATES.IDLE_MODE;
+      this.flapAngleDeg = 0.0;
+      this.pumpActive = false;
+      this.pwmDutyPct = 0.0;
     } else if (cur < THERMAL_THRESHOLDS.T2) {
       this.state = SYSTEM_STATES.PASSIVE_AERO_COOLING;
+      this.pumpActive = false;
+      this.pwmDutyPct = 0.0;
+      this.flapAngleDeg = Math.min(90.0, Math.max(0.0, ((cur - THERMAL_THRESHOLDS.T1) / 25.0) * 90.0));
     } else {
       this.state = SYSTEM_STATES.ACTIVE_FLUID_LOOP;
+      this.pumpActive = true;
+      this.pwmDutyPct = Math.min(100.0, Math.max(0.0, (cur - this.setpoint) * 5.0 + 35.0));
     }
+
     return true;
   }
 

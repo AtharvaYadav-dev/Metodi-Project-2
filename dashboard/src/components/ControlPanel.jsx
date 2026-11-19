@@ -88,12 +88,15 @@ const ControlPanel = memo(function ControlPanel({
           </button>
           <button
             onClick={() => setActiveTab('FAULTS')}
-            className={`px-2 py-0.5 rounded transition-all ${
+            className={`px-2 py-0.5 rounded transition-all flex items-center gap-1 ${
               activeTab === 'FAULTS'
                 ? 'bg-rose-700 text-white font-bold'
+                : isFaulted
+                ? 'bg-red-950/90 text-red-300 border border-red-700 font-bold animate-pulse'
                 : 'text-gray-400 hover:text-gray-200'
             }`}
           >
+            {isFaulted && <span className="h-1.5 w-1.5 rounded-full bg-red-400 animate-ping inline-block" />}
             FAULTS
           </button>
           <button
@@ -109,6 +112,23 @@ const ControlPanel = memo(function ControlPanel({
           </button>
         </div>
       </div>
+
+      {/* Emergency Active Interlock Banner if Faulted */}
+      {isFaulted && (
+        <div className="mb-2 p-1.5 px-2 rounded-lg bg-red-950/85 border border-red-600 text-red-200 flex items-center justify-between gap-2 shadow-lg shadow-red-950/50 animate-pulse flex-shrink-0">
+          <div className="flex items-center gap-1.5 text-[10.5px] font-mono min-w-0">
+            <ShieldAlert className="h-3.5 w-3.5 text-red-400 flex-shrink-0" />
+            <span className="font-bold truncate">INTERLOCK TRIPPED</span>
+          </div>
+          <button
+            onClick={onResetSystem}
+            className="px-2 py-0.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-mono font-bold text-[10px] flex items-center gap-1 shadow-md shadow-emerald-950/50 whitespace-nowrap transition-transform active:scale-95"
+          >
+            <RotateCcw className="h-2.5 w-2.5" />
+            RESET INTERLOCK
+          </button>
+        </div>
+      )}
 
       {/* Main Tab Content Viewport with strictly bounded height */}
       <div className="w-full overflow-y-auto min-h-0 max-h-56 pr-1 space-y-2.5 text-xs font-mono">

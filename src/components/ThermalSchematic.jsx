@@ -480,7 +480,7 @@ const ThermalSchematic = memo(function ThermalSchematic({ telemetry, onToggle3DV
   }, []);
 
   return (
-    <div className="relative w-full rounded-xl border border-cyan-950/70 bg-[#090C15] p-2 shadow-2xl backdrop-blur-md overflow-hidden flex flex-col flex-shrink-0">
+    <div className="relative w-full rounded-xl border border-cyan-950/70 bg-[#090C15] p-2 shadow-2xl backdrop-blur-md overflow-hidden flex flex-col flex-1 min-h-[190px] max-h-[310px]">
       {/* Top Banner Ribbon */}
       <div className="flex items-center justify-between border-b border-gray-800/80 pb-1 mb-1 px-1 text-xs flex-shrink-0 z-10 gap-2">
         <div className="flex items-center gap-1.5 min-w-0">
@@ -508,7 +508,7 @@ const ThermalSchematic = memo(function ThermalSchematic({ telemetry, onToggle3DV
       </div>
 
       {/* Main Canvas Viewport with strict sizing */}
-      <div className="w-full flex justify-center bg-black/40 rounded-lg overflow-hidden border border-gray-900 flex-1 min-h-[220px]">
+      <div className="w-full flex justify-center bg-black/40 rounded-lg overflow-hidden border border-gray-900 flex-1 min-h-0">
         <canvas
           ref={canvasRef}
           width={1000}

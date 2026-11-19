@@ -19,16 +19,16 @@ import {
 
 const TelemetryChart = memo(function TelemetryChart({ history = [], currentSetpoint = 75.0 }) {
   return (
-    <div className="w-full flex flex-col rounded-xl border border-gray-800/80 bg-[#090C15] p-2.5 shadow-xl backdrop-blur-md min-h-0 flex-shrink-0">
+    <div className="w-full flex flex-col rounded-xl border border-gray-800/80 bg-[#090C15] p-2 shadow-xl backdrop-blur-md min-h-0 flex-shrink-0">
       {/* Chart Title and Status */}
-      <div className="flex items-center justify-between border-b border-gray-800/80 pb-1.5 mb-1 px-1 flex-shrink-0">
-        <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between border-b border-gray-800/80 pb-1 mb-1 px-1 flex-shrink-0">
+        <div className="flex items-center gap-1.5">
           <span className="h-2 w-2 rounded-full bg-cyan-400 animate-pulse" />
           <h3 className="font-heading font-semibold text-gray-200 tracking-wider text-xs">
             REAL-TIME TELEMETRY OSCILLOSCOPE (10 Hz STREAM)
           </h3>
         </div>
-        <div className="flex items-center gap-3 text-[10.5px] font-mono text-gray-400">
+        <div className="flex items-center gap-3 text-[10px] font-mono text-gray-400">
           <span className="flex items-center gap-1">
             <span className="inline-block w-2.5 h-0.5 bg-cyan-400" /> Filt T
           </span>
@@ -45,11 +45,11 @@ const TelemetryChart = memo(function TelemetryChart({ history = [], currentSetpo
       </div>
 
       {/* Recharts Container with strictly constrained height */}
-      <div className="w-full h-44 md:h-48 min-h-0 flex-1">
-        <ResponsiveContainer width="100%" height="100%">
+      <div className="w-full h-[155px] min-h-[140px] relative">
+        <ResponsiveContainer width="100%" height={155}>
           <LineChart
             data={history}
-            margin={{ top: 8, right: 8, left: -14, bottom: 0 }}
+            margin={{ top: 6, right: 6, left: -16, bottom: 0 }}
           >
             <CartesianGrid strokeDasharray="3 3" stroke="#1E293B" opacity={0.5} />
 
@@ -58,7 +58,7 @@ const TelemetryChart = memo(function TelemetryChart({ history = [], currentSetpo
               yAxisId="temp"
               domain={[10, 125]}
               stroke="#64748B"
-              tick={{ fill: '#94A3B8', fontSize: 9.5, fontFamily: 'monospace' }}
+              tick={{ fill: '#94A3B8', fontSize: 9, fontFamily: 'monospace' }}
               tickFormatter={(v) => `${v}°`}
             />
 
@@ -68,15 +68,15 @@ const TelemetryChart = memo(function TelemetryChart({ history = [], currentSetpo
               orientation="right"
               domain={[0, 100]}
               stroke="#64748B"
-              tick={{ fill: '#C084FC', fontSize: 9.5, fontFamily: 'monospace' }}
+              tick={{ fill: '#C084FC', fontSize: 9, fontFamily: 'monospace' }}
               tickFormatter={(v) => `${v}%`}
             />
 
             <XAxis
               dataKey="time"
               stroke="#475569"
-              tick={{ fill: '#64748B', fontSize: 9, fontFamily: 'monospace' }}
-              interval="preserveStartEnd"
+              tick={{ fill: '#64748B', fontSize: 8.5, fontFamily: 'monospace' }}
+              minTickGap={25}
             />
 
             <Tooltip content={<CustomTooltip />} />

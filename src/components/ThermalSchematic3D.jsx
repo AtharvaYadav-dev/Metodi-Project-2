@@ -773,7 +773,7 @@ const ThermalSchematic3D = memo(function ThermalSchematic3D({
   }, [autoRotate]);
 
   return (
-    <div className="relative w-full flex-1 min-h-[220px] max-h-[380px] rounded-xl border border-cyan-950/70 bg-[#07090E] p-2 shadow-2xl backdrop-blur-md overflow-hidden flex flex-col">
+    <div className="relative w-full flex-1 min-h-[190px] max-h-[310px] rounded-xl border border-cyan-950/70 bg-[#07090E] p-2 shadow-2xl backdrop-blur-md overflow-hidden flex flex-col">
       {/* Top Banner Ribbon - Responsive, Wrap-Protected & Overlap-Free */}
       <div className="flex items-center justify-between border-b border-gray-800/80 pb-1 mb-1 px-1 text-xs flex-shrink-0 z-10 gap-2">
         <div className="flex items-center gap-1.5 min-w-0">
