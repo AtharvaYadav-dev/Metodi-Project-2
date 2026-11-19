@@ -269,15 +269,10 @@ export default function App() {
                     is3D={true}
                   />
                 ) : (
-                  <div className="relative flex-1 min-h-[220px] max-h-[380px] flex flex-col">
-                    <ThermalSchematic telemetry={telemetry} />
-                    <button
-                      onClick={() => setVisualMode('3D')}
-                      className="absolute top-2 right-2 px-2 py-0.5 rounded bg-cyan-950/80 hover:bg-cyan-900 border border-cyan-700 text-cyan-300 text-[10px] font-mono font-semibold transition-colors z-20"
-                    >
-                      SWITCH TO 3D ISOMETRIC
-                    </button>
-                  </div>
+                  <ThermalSchematic
+                    telemetry={telemetry}
+                    onToggle3DView={() => setVisualMode('3D')}
+                  />
                 )}
 
                 {/* Real-Time Dual-Axis Oscilloscope */}

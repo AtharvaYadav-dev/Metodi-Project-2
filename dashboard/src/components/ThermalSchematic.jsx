@@ -11,8 +11,9 @@
  */
 
 import React, { useRef, useEffect, memo } from 'react';
+import { Box } from 'lucide-react';
 
-const ThermalSchematic = memo(function ThermalSchematic({ telemetry }) {
+const ThermalSchematic = memo(function ThermalSchematic({ telemetry, onToggle3DView }) {
   const canvasRef = useRef(null);
   const animFrameIdRef = useRef(null);
   const telemetryRef = useRef(telemetry);
@@ -481,20 +482,28 @@ const ThermalSchematic = memo(function ThermalSchematic({ telemetry }) {
   return (
     <div className="relative w-full rounded-xl border border-cyan-950/70 bg-[#090C15] p-2 shadow-2xl backdrop-blur-md overflow-hidden flex flex-col flex-shrink-0">
       {/* Top Banner Ribbon */}
-      <div className="flex items-center justify-between border-b border-gray-800/80 pb-1.5 mb-1.5 px-1.5 text-xs flex-shrink-0">
-        <div className="flex items-center gap-2">
-          <span className="inline-block h-2 w-2 rounded-full bg-cyan-400 animate-ping" />
-          <span className="font-heading font-semibold text-gray-200 tracking-wider text-xs">
+      <div className="flex items-center justify-between border-b border-gray-800/80 pb-1 mb-1 px-1 text-xs flex-shrink-0 z-10 gap-2">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <span className="inline-block h-2 w-2 rounded-full bg-cyan-400 animate-ping flex-shrink-0" />
+          <span className="font-heading font-semibold text-gray-200 tracking-wider text-[11px] sm:text-xs truncate">
             2D/2.5D AEROTHERM CHASSIS SCHEMATIC
           </span>
         </div>
-        <div className="flex items-center gap-3 text-gray-400 font-mono text-[10.5px]">
-          <span>RAM-AIR: <strong className="text-cyan-300">{(telemetry?.speed_kmh || 0).toFixed(0)} km/h</strong></span>
-          <span>FLAP: <strong className="text-cyan-300">{telemetry?.flap_deg || 0}°</strong></span>
+        <div className="flex items-center gap-2 text-gray-400 font-mono text-[10px] flex-shrink-0">
+          <span className="hidden sm:inline">RAM: <strong className="text-cyan-300">{(telemetry?.speed_kmh || 0).toFixed(0)} km/h</strong></span>
+          <span className="hidden md:inline">FLAP: <strong className="text-cyan-300">{telemetry?.flap_deg || 0}°</strong></span>
           <span>PUMP: <strong className={telemetry?.pump ? 'text-emerald-400' : 'text-gray-500'}>
             {telemetry?.pump ? 'ACTIVE' : 'STANDBY'}
           </strong></span>
-          <span>PWM: <strong className="text-purple-400">{(telemetry?.pwm_pct || 0).toFixed(1)}%</strong></span>
+          {onToggle3DView && (
+            <button
+              onClick={onToggle3DView}
+              className="px-2 py-0.5 rounded bg-cyan-950/80 hover:bg-cyan-900 border border-cyan-700 text-cyan-300 flex items-center gap-1 font-semibold transition-colors whitespace-nowrap shadow-sm shadow-cyan-950/50"
+            >
+              <Box className="h-2.5 w-2.5" />
+              SWITCH TO 3D
+            </button>
+          )}
         </div>
       </div>
 
@@ -509,23 +518,35 @@ const ThermalSchematic = memo(function ThermalSchematic({ telemetry }) {
       </div>
 
       {/* Bottom Visual Legend */}
-      <div className="grid grid-cols-4 gap-1.5 mt-1.5 pt-1.5 border-t border-gray-800/60 text-[10px] text-gray-400 px-1 font-mono flex-shrink-0">
-        <div className="flex items-center gap-1.5">
-          <span className="h-2 w-2 rounded-full bg-cyan-400 inline-block" />
-          <span>Venturi Flaps (0°-90°)</span>
+      <div className="flex items-center justify-between mt-1 pt-1 border-t border-gray-800/60 text-[10px] text-gray-400 px-1 font-mono flex-shrink-0">
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5">
+            <span className="h-2 w-2 rounded-full bg-cyan-400 inline-block" />
+            <span>Venturi Flaps (0°-90°)</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="h-2 w-2 rounded-full bg-emerald-400 inline-block" />
+            <span>800V Fluid Pump</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="h-2 w-2 rounded-full bg-amber-400 inline-block" />
+            <span>16-Cell Heat Map</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="h-2 w-2 rounded-full bg-purple-400 inline-block" />
+            <span>PID Chiller (0-100%)</span>
+          </div>
         </div>
-        <div className="flex items-center gap-1.5">
-          <span className="h-2 w-2 rounded-full bg-emerald-400 inline-block" />
-          <span>800V Fluid Pump</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <span className="h-2 w-2 rounded-full bg-amber-400 inline-block" />
-          <span>16-Cell Heat Map</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <span className="h-2 w-2 rounded-full bg-purple-400 inline-block" />
-          <span>PID Chiller (0-100%)</span>
-        </div>
+
+        {onToggle3DView && (
+          <button
+            onClick={onToggle3DView}
+            className="px-2 py-0.5 rounded bg-gray-800/80 hover:bg-gray-700 border border-gray-700 text-cyan-300 flex items-center gap-1 font-semibold transition-colors whitespace-nowrap text-[10px]"
+          >
+            <Box className="h-2.5 w-2.5" />
+            3D VIEW
+          </button>
+        )}
       </div>
     </div>
   );
