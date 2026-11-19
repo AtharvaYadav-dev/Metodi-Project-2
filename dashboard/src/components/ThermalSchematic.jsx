@@ -404,13 +404,28 @@ const ThermalSchematic = memo(function ThermalSchematic({ telemetry, onToggle3DV
       const cellW = (packW - 30 - (cols - 1) * cellPadX) / cols;
       const cellH = (packH - 32 - (rows - 1) * cellPadY) / rows;
 
+      let maxT = -Infinity;
+      let minT = Infinity;
+      let hotspotMod = 'Mod-06';
+
       for (let r = 0; r < rows; r++) {
         for (let c = 0; c < cols; c++) {
           const cx = packX + 15 + c * (cellW + cellPadX);
           const cy = packY + 12 + r * (cellH + cellPadY);
+          const modIdx = r * 4 + c + 1;
 
           const coreDist = Math.abs(c - 1.5) + Math.abs(r - 1.5);
-          const cellTemp = temp_filt + (2.2 - coreDist * 0.8);
+          const coreOffset = (2.2 - coreDist * 0.85);
+          const frontAir = ((3.0 - c) / 3.0) * (flap_deg / 90.0) * (speed_kmh / 120.0) * 3.2;
+          const liquidChill = pump ? ((pwm_pct / 100.0) * (2.8 - (r + c) * 0.35)) : 0.0;
+          const cellTemp = Math.max(-10, temp_filt + coreOffset - frontAir - liquidChill);
+
+          if (cellTemp > maxT) {
+            maxT = cellTemp;
+            hotspotMod = `Mod-${String(modIdx).padStart(2, '0')}`;
+          }
+          if (cellTemp < minT) minT = cellTemp;
+
           const cellColor = getTempColor(cellTemp);
 
           ctx.fillStyle = cellColor;
@@ -422,19 +437,19 @@ const ThermalSchematic = memo(function ThermalSchematic({ telemetry, onToggle3DV
           ctx.fillRect(cx + 5, cy + 2.5, cellW - 10, 2.5);
 
           ctx.fillStyle = '#090A0F';
-          ctx.font = 'bold 8.5px JetBrains Mono, monospace';
+          ctx.font = 'bold 8px JetBrains Mono, monospace';
           ctx.textAlign = 'center';
           ctx.fillText(`${cellTemp.toFixed(0)}°`, cx + cellW / 2, cy + cellH / 2 + 3);
         }
       }
       ctx.restore();
 
-      // Core Temp Badge
+      // Pack Thermal Matrix & Hotspot Badge
       ctx.save();
-      ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.95)';
       ctx.strokeStyle = fault ? '#EF4444' : '#38BDF8';
       ctx.lineWidth = 1.2;
-      const badgeW = 150;
+      const badgeW = 210;
       const badgeH = 24;
       const badgeX = packX + (packW - badgeW) / 2;
       const badgeY = packY - 28;
@@ -444,9 +459,10 @@ const ThermalSchematic = memo(function ThermalSchematic({ telemetry, onToggle3DV
       ctx.stroke();
 
       ctx.fillStyle = fault ? '#F87171' : '#E0F2FE';
-      ctx.font = 'bold 10px JetBrains Mono, monospace';
+      ctx.font = 'bold 9px JetBrains Mono, monospace';
       ctx.textAlign = 'center';
-      ctx.fillText(`PACK CORE: ${temp_filt.toFixed(1)}°C`, badgeX + badgeW / 2, badgeY + 16);
+      const deltaT = Math.max(0, maxT - minT);
+      ctx.fillText(`PACK: ${temp_filt.toFixed(1)}°C | ΔT: ${deltaT.toFixed(1)}° | HS: ${hotspotMod}`, badgeX + badgeW / 2, badgeY + 16);
       ctx.restore();
 
       // Top HUD Labels

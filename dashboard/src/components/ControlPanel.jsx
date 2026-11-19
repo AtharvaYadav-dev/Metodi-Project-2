@@ -16,7 +16,8 @@ import {
   ShieldAlert,
   Flame,
   Radio,
-  Layers
+  Layers,
+  Activity
 } from 'lucide-react';
 
 const ControlPanel = memo(function ControlPanel({
@@ -35,9 +36,16 @@ const ControlPanel = memo(function ControlPanel({
   onInjectNoise,
   onResetSystem,
   isFaulted,
-  isHardwareMode
+  isHardwareMode,
+  activeDriveCycle = 'MANUAL',
+  setActiveDriveCycle,
+  driveCycleElapsed = 0,
+  telemetry = {},
+  diagnostics = {}
 }) {
   const [activeTab, setActiveTab] = useState('ENV_LOAD'); // 'ENV_LOAD' | 'PID' | 'FAULTS' | 'ALL'
+
+  const trackingError = (telemetry?.setpoint || 75.0) - (telemetry?.temp_filt || 25.0);
 
   const handleGainChange = (field, val) => {
     setPidGains({ ...pidGains, [field]: Number(val) });
@@ -212,27 +220,110 @@ const ControlPanel = memo(function ControlPanel({
               </div>
             </div>
 
-            {/* Presets */}
+            {/* Quick Presets */}
             <div className="flex items-center gap-1 pt-1 text-[9.5px]">
               <span className="text-gray-500">PRESETS:</span>
               <button
-                onClick={() => applyScenario(35, 18, 24)}
+                onClick={() => {
+                  applyScenario(35, 18, 24);
+                  if (setActiveDriveCycle) setActiveDriveCycle('MANUAL');
+                }}
                 className="px-1.5 py-0.5 bg-gray-800/80 hover:bg-gray-700 rounded text-gray-300 border border-gray-700"
               >
                 City ECO (35km/h)
               </button>
               <button
-                onClick={() => applyScenario(110, 48, 32)}
+                onClick={() => {
+                  applyScenario(110, 48, 32);
+                  if (setActiveDriveCycle) setActiveDriveCycle('MANUAL');
+                }}
                 className="px-1.5 py-0.5 bg-gray-800/80 hover:bg-gray-700 rounded text-gray-300 border border-gray-700"
               >
                 Highway (110km/h)
               </button>
               <button
-                onClick={() => applyScenario(170, 130, 38)}
+                onClick={() => {
+                  applyScenario(170, 130, 38);
+                  if (setActiveDriveCycle) setActiveDriveCycle('MANUAL');
+                }}
                 className="px-1.5 py-0.5 bg-amber-950/40 hover:bg-amber-900/60 rounded text-amber-300 border border-amber-800/60"
               >
                 Track Sprint
               </button>
+            </div>
+
+            {/* Automated Drive Cycles & Stress Profiles */}
+            <div className="pt-2 border-t border-gray-800/60 space-y-1.5">
+              <div className="flex items-center justify-between text-[10px]">
+                <span className="text-gray-400 font-bold flex items-center gap-1">
+                  <Activity className="h-3 w-3 text-cyan-400" /> AUTOMATED DRIVE CYCLES:
+                </span>
+                <span className={`px-1.5 py-0.2 rounded font-mono text-[9px] font-bold ${
+                  activeDriveCycle !== 'MANUAL'
+                    ? 'bg-cyan-950 border border-cyan-700 text-cyan-300 animate-pulse'
+                    : 'bg-gray-800 text-gray-400'
+                }`}>
+                  {activeDriveCycle !== 'MANUAL' ? `RUNNING (${driveCycleElapsed.toFixed(0)}s)` : 'MANUAL'}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-1 text-[9.5px]">
+                <button
+                  onClick={() => setActiveDriveCycle && setActiveDriveCycle('STEADY_CRUISE')}
+                  className={`px-1.5 py-1 rounded border transition-colors truncate font-semibold ${
+                    activeDriveCycle === 'STEADY_CRUISE'
+                      ? 'bg-cyan-600 text-white border-cyan-400 shadow-sm'
+                      : 'bg-black/40 border-gray-800 text-gray-300 hover:bg-gray-800'
+                  }`}
+                  title="Steady Highway Cruising (Aero ram cooling & low aux draw)"
+                >
+                  Steady Cruise
+                </button>
+                <button
+                  onClick={() => setActiveDriveCycle && setActiveDriveCycle('URBAN_STOP_GO')}
+                  className={`px-1.5 py-1 rounded border transition-colors truncate font-semibold ${
+                    activeDriveCycle === 'URBAN_STOP_GO'
+                      ? 'bg-cyan-600 text-white border-cyan-400 shadow-sm'
+                      : 'bg-black/40 border-gray-800 text-gray-300 hover:bg-gray-800'
+                  }`}
+                  title="Urban Traffic Stop-Go (Speed oscillations & regen surges)"
+                >
+                  Urban Stop-Go
+                </button>
+                <button
+                  onClick={() => setActiveDriveCycle && setActiveDriveCycle('FAST_CHARGE_RAMP')}
+                  className={`px-1.5 py-1 rounded border transition-colors truncate font-semibold ${
+                    activeDriveCycle === 'FAST_CHARGE_RAMP'
+                      ? 'bg-amber-600 text-white border-amber-400 shadow-sm'
+                      : 'bg-black/40 border-gray-800 text-gray-300 hover:bg-gray-800'
+                  }`}
+                  title="DC Fast Charging Ramp (Stationary 220 kW thermal surge)"
+                >
+                  Fast-Charge
+                </button>
+                <button
+                  onClick={() => setActiveDriveCycle && setActiveDriveCycle('THERMAL_STRESS_SWEEP')}
+                  className={`px-1.5 py-1 rounded border transition-colors truncate font-semibold ${
+                    activeDriveCycle === 'THERMAL_STRESS_SWEEP'
+                      ? 'bg-rose-600 text-white border-rose-400 shadow-sm'
+                      : 'bg-black/40 border-gray-800 text-gray-300 hover:bg-gray-800'
+                  }`}
+                  title="Desert High-Ambient Thermal Stress Sweep (Torture test)"
+                >
+                  Stress Sweep
+                </button>
+              </div>
+
+              {activeDriveCycle !== 'MANUAL' && (
+                <div className="flex justify-end pt-0.5">
+                  <button
+                    onClick={() => setActiveDriveCycle && setActiveDriveCycle('MANUAL')}
+                    className="text-[9px] text-gray-400 hover:text-white underline underline-offset-2 flex items-center gap-1"
+                  >
+                    Stop Cycle &amp; Return to Manual
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -321,6 +412,79 @@ const ControlPanel = memo(function ControlPanel({
               >
                 Soft ECO (1.2, 0.15, 0.35)
               </button>
+            </div>
+
+            {/* Live Control Diagnostics & PID Term Breakdown */}
+            <div className="pt-2 border-t border-gray-800/60 space-y-2 text-[10px]">
+              <div className="flex items-center justify-between text-purple-300 font-semibold text-[10.5px]">
+                <span className="flex items-center gap-1">
+                  <Activity className="h-3 w-3 text-purple-400" /> LIVE CONTROL DIAGNOSTICS &amp; METRICS
+                </span>
+                <span className="text-[9px] text-gray-500">CLOSED-LOOP HIL</span>
+              </div>
+
+              {/* Metric Row: Tracking Error, Jitter, Sensor Health, Watchdog */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-[9.5px]">
+                <div className="p-1.5 rounded bg-black/50 border border-gray-800">
+                  <span className="text-gray-400">TRACKING ERROR:</span>
+                  <div className={`font-bold mt-0.5 ${Math.abs(trackingError) > 5 ? 'text-amber-400' : 'text-emerald-400'}`}>
+                    {trackingError > 0 ? `+${trackingError.toFixed(1)}°C` : `${trackingError.toFixed(1)}°C`}
+                  </div>
+                  <span className="text-[8px] text-gray-500">SP - Filt T</span>
+                </div>
+
+                <div className="p-1.5 rounded bg-black/50 border border-gray-800">
+                  <span className="text-gray-400">LOOP JITTER:</span>
+                  <div className="text-cyan-300 font-bold mt-0.5">
+                    ±{(diagnostics.loopJitterMs || 0.2).toFixed(1)} ms
+                  </div>
+                  <span className="text-[8px] text-gray-500">Period: {(diagnostics.loopPeriodMs || 10.0).toFixed(1)}ms</span>
+                </div>
+
+                <div className="p-1.5 rounded bg-black/50 border border-gray-800">
+                  <span className="text-gray-400">SENSOR HEALTH:</span>
+                  <div className={`font-bold mt-0.5 truncate ${telemetry?.fault ? 'text-red-400' : 'text-emerald-400'}`}>
+                    {telemetry?.fault ? 'FAULT DETECTED' : 'HEALTHY (12-BIT)'}
+                  </div>
+                  <span className="text-[8px] text-gray-500">1.65V Midscale</span>
+                </div>
+
+                <div className="p-1.5 rounded bg-black/50 border border-gray-800">
+                  <span className="text-gray-400">WATCHDOG:</span>
+                  <div className="text-emerald-300 font-bold mt-0.5">
+                    {diagnostics.watchdogStatus || 'NOMINAL'}
+                  </div>
+                  <span className="text-[8px] text-gray-500">100ms Timeout OK</span>
+                </div>
+              </div>
+
+              {/* PID Term Output Breakdown */}
+              <div className="p-1.5 rounded bg-black/40 border border-gray-800 space-y-1">
+                <div className="flex items-center justify-between text-[9px] text-gray-400">
+                  <span>PID COMPONENT TERMS (PWM: {(telemetry?.pwm_pct || 0).toFixed(1)}%)</span>
+                  <span className="text-purple-300">
+                    P: {(telemetry?.pid?.p || 0).toFixed(1)} | I: {(telemetry?.pid?.i || 0).toFixed(1)} | D: {(telemetry?.pid?.d || 0).toFixed(1)}
+                  </span>
+                </div>
+                {/* Visual stacked / segmented representation */}
+                <div className="w-full h-1.5 bg-gray-800 rounded overflow-hidden flex">
+                  <div
+                    style={{ width: `${Math.min(100, Math.max(0, telemetry?.pid?.p || 0))}%` }}
+                    className="h-full bg-purple-500"
+                    title={`P Term: ${(telemetry?.pid?.p || 0).toFixed(1)}%`}
+                  />
+                  <div
+                    style={{ width: `${Math.min(100, Math.max(0, telemetry?.pid?.i || 0))}%` }}
+                    className="h-full bg-blue-500"
+                    title={`I Term: ${(telemetry?.pid?.i || 0).toFixed(1)}%`}
+                  />
+                  <div
+                    style={{ width: `${Math.min(100, Math.max(0, telemetry?.pid?.d || 0))}%` }}
+                    className="h-full bg-cyan-400"
+                    title={`D Term: ${(telemetry?.pid?.d || 0).toFixed(1)}%`}
+                  />
+                </div>
+              </div>
             </div>
           </div>
         )}

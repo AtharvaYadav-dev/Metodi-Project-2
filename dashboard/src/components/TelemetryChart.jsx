@@ -16,11 +16,65 @@ import {
   Tooltip,
   ReferenceLine
 } from 'recharts';
+import { Download } from 'lucide-react';
 
 const TelemetryChart = memo(function TelemetryChart({ history = [], currentSetpoint = 75.0 }) {
   const containerRef = useRef(null);
   const [chartDim, setChartDim] = useState({ width: 0, height: 0 });
   const [scaleMode, setScaleMode] = useState('AUTO'); // 'AUTO' | 'FULL'
+
+  const handleExportJson = () => {
+    if (!history.length) return;
+    const dataObj = {
+      exported_at: new Date().toISOString(),
+      system: 'AeroTherm Phase 2 EV Thermal Management System',
+      target_setpoint_c: currentSetpoint,
+      sample_count: history.length,
+      history: history
+    };
+    const jsonStr = JSON.stringify(dataObj, null, 2);
+    const blob = new Blob([jsonStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `aerotherm_telemetry_${Date.now()}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleExportCsv = () => {
+    if (!history.length) return;
+    const headers = ['time_s', 'temp_filt_c', 'temp_raw_c', 'setpoint_c', 'pwm_pct', 'state', 'pid_p', 'pid_i', 'pid_d'];
+    const rows = history.map((item) => {
+      const cleanTime = String(item.time || '').replace(/s$/, '');
+      const p = item.pid?.p ?? '';
+      const i = item.pid?.i ?? '';
+      const d = item.pid?.d ?? '';
+      return [
+        cleanTime,
+        typeof item.temp_filt === 'number' ? item.temp_filt.toFixed(2) : item.temp_filt,
+        typeof item.temp_raw === 'number' ? item.temp_raw.toFixed(2) : item.temp_raw,
+        item.setpoint ?? '',
+        item.pwm_pct ?? '',
+        item.state ?? '',
+        p,
+        i,
+        d
+      ].join(',');
+    });
+    const csvContent = [headers.join(','), ...rows].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `aerotherm_telemetry_${Date.now()}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
 
   // Measure container dimensions continuously with ResizeObserver to fill 100% of available space
   useEffect(() => {
@@ -113,6 +167,27 @@ const TelemetryChart = memo(function TelemetryChart({ history = [], currentSetpo
               title="Full automotive threshold range 0°C to 125°C"
             >
               FULL (0–125°C)
+            </button>
+          </div>
+
+          {/* One-Click Telemetry Export (JSON & CSV) */}
+          <div className="flex items-center gap-1 bg-black/60 p-0.5 rounded border border-gray-800 text-[9px] font-mono ml-1">
+            <span className="text-gray-500 flex items-center gap-0.5 px-1">
+              <Download className="h-2.5 w-2.5 text-cyan-400" /> EXPORT:
+            </span>
+            <button
+              onClick={handleExportJson}
+              className="px-1.5 py-0.2 rounded bg-gray-800/90 hover:bg-gray-700 text-cyan-300 font-semibold transition-colors"
+              title="Download ring buffer telemetry capture as JSON"
+            >
+              JSON
+            </button>
+            <button
+              onClick={handleExportCsv}
+              className="px-1.5 py-0.2 rounded bg-gray-800/90 hover:bg-gray-700 text-emerald-300 font-semibold transition-colors"
+              title="Download ring buffer telemetry capture as CSV"
+            >
+              CSV
             </button>
           </div>
         </div>

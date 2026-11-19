@@ -37,6 +37,12 @@ const ThermalSchematic3D = memo(function ThermalSchematic3D({
   const telemetryRef = useRef(telemetry);
   const [cameraView, setCameraView] = useState('ISO');
   const [autoRotate, setAutoRotate] = useState(false);
+  const [packMetrics, setPackMetrics] = useState({
+    max: 28.5,
+    min: 27.2,
+    delta: 1.3,
+    hotspot: 'Mod-06'
+  });
   const setViewRef = useRef(null);
 
   // Sync telemetry safely without tearing down WebGL context
@@ -418,7 +424,7 @@ const ThermalSchematic3D = memo(function ThermalSchematic3D({
         cell.add(term);
 
         chassisGroup.add(cell);
-        cells.push({ mesh: cell, row: r, col: c });
+        cells.push({ mesh: cell, row: r, col: c, index: r * 4 + c });
       }
     }
 
@@ -622,6 +628,10 @@ const ThermalSchematic3D = memo(function ThermalSchematic3D({
     let animId = null;
     let lastTime = performance.now();
 
+    let lastMetricsUpdate = 0;
+    const tempColorHelper = new THREE.Color();
+    const coolantColorHelper = new THREE.Color();
+
     const animate = (now) => {
       const dt = Math.min((now - lastTime) / 1000, 0.1);
       lastTime = now;
@@ -634,6 +644,7 @@ const ThermalSchematic3D = memo(function ThermalSchematic3D({
         pump = false,
         pwm_pct = 0,
         battery_load_kw = 35,
+        coolant_temp = 28.0,
         fault = null
       } = telem;
 
@@ -653,11 +664,17 @@ const ThermalSchematic3D = memo(function ThermalSchematic3D({
       flapHingeLeft.rotation.z += (targetFlapRad - flapHingeLeft.rotation.z) * 0.15;
       flapHingeRight.rotation.z += (targetFlapRad - flapHingeRight.rotation.z) * 0.15;
 
-      // 4. Coolant Fluid Particles Movement
+      // 4. Coolant Fluid Particles Movement & Dynamic Temperature Tinting
       if (pump) {
         fluidParticleMat.opacity = 0.95;
-        const fluidSpeed = (0.08 + (pwm_pct / 100) * 0.18) * dt;
+        const fluidSpeed = (0.10 + (pwm_pct / 100.0) * 0.30) * dt;
         const posAttr = fluidParticlesGeo.attributes.position;
+
+        getSmoothThreeTempColor(coolant_temp || 30.0, coolantColorHelper);
+        fluidParticleMat.color.copy(coolantColorHelper);
+        pipeMat.color.copy(coolantColorHelper);
+        pipeMat.emissive.copy(coolantColorHelper);
+        pipeMat.emissiveIntensity = 0.5 + (pwm_pct / 100.0) * 0.45;
 
         for (let i = 0; i < fluidCount; i++) {
           fluidProgress[i] = (fluidProgress[i] + fluidSpeed) % 1.0;
@@ -667,6 +684,7 @@ const ThermalSchematic3D = memo(function ThermalSchematic3D({
         posAttr.needsUpdate = true;
       } else {
         fluidParticleMat.opacity = 0.25;
+        pipeMat.emissiveIntensity = 0.2;
       }
 
       // 5. Thermal Heat Busbars (Radiant gold/amber pulsing under electrical load)
@@ -679,24 +697,51 @@ const ThermalSchematic3D = memo(function ThermalSchematic3D({
       packHeatLight.color.setHex(heatColorHex);
       packHeatLight.intensity = 1.6 + heatFluxIntensity * 1.8;
 
-      // 6. Dynamic 16-Cell Temperature Interpolation
-      const cellColorHex = getThreeTempColor(temp_filt);
-      packCoolingLight.color.setHex(cellColorHex);
-
-      pipeMat.color.setHex(pump ? 0x22d3ee : 0x0284c7);
-      pipeMat.emissive.setHex(pump ? 0x06b6d4 : 0x0284c7);
-      pipeMat.emissiveIntensity = pump ? 0.85 : 0.2;
-
       pumpMat.emissive.setHex(pump ? 0x10b981 : 0x047857);
 
-      cells.forEach(({ mesh, row, col }) => {
+      // 6. Smooth Per-Cell Thermal Gradient & Pack Matrix Calculation
+      let maxT = -Infinity;
+      let minT = Infinity;
+      let hotspotMod = 'Mod-06';
+
+      cells.forEach(({ mesh, row, col, index = 0 }) => {
+        // Core distance offset: center cells naturally run warmer under electrical load
         const coreDist = Math.abs(col - 1.5) + Math.abs(row - 1.5);
-        const cellTemp = temp_filt + (2.0 - coreDist * 0.7);
-        const hex = getThreeTempColor(cellTemp);
-        mesh.material.color.setHex(hex);
-        mesh.material.emissive.setHex(hex);
-        mesh.material.emissiveIntensity = fault ? 0.95 : cellTemp >= 65.0 ? 0.75 : 0.55;
+        const coreOffset = (2.2 - coreDist * 0.85) * (Math.max(20, battery_load_kw || 35) / 45.0);
+
+        // Convective ram-air cooling (front modules cool more when flaps open & speed up)
+        const frontAirFactor = ((3.0 - col) / 3.0) * (flap_deg / 90.0) * (speed_kmh / 120.0) * 3.5;
+
+        // Liquid cooling factor (cells near coolant inlet chill faster when pump is active)
+        const liquidFactor = pump ? ((pwm_pct / 100.0) * (2.8 - (row + col) * 0.35)) : 0.0;
+
+        // Localized module temperature
+        const cellTemp = Math.max(-10, temp_filt + coreOffset - frontAirFactor - liquidFactor);
+
+        if (cellTemp > maxT) {
+          maxT = cellTemp;
+          hotspotMod = `Mod-${String(index + 1).padStart(2, '0')}`;
+        }
+        if (cellTemp < minT) {
+          minT = cellTemp;
+        }
+
+        getSmoothThreeTempColor(cellTemp, tempColorHelper);
+        mesh.material.color.copy(tempColorHelper);
+        mesh.material.emissive.copy(tempColorHelper);
+        mesh.material.emissiveIntensity = fault ? 0.95 : cellTemp >= 85.0 ? 0.85 : cellTemp >= 65.0 ? 0.70 : 0.50;
       });
+
+      // Throttle React state update for HUD overlay (~10Hz)
+      if (now - lastMetricsUpdate > 100) {
+        lastMetricsUpdate = now;
+        setPackMetrics({
+          max: maxT,
+          min: minT,
+          delta: Math.max(0, maxT - minT),
+          hotspot: hotspotMod
+        });
+      }
 
       // 7. Aerodynamic Airflow Streamlines
       const streamPosAttr = streamGeo.attributes.position;
@@ -807,11 +852,26 @@ const ThermalSchematic3D = memo(function ThermalSchematic3D({
         </div>
       </div>
 
-      {/* 3D WebGL Canvas Viewport */}
+      {/* 3D WebGL Canvas Viewport with Live Pack Thermal Matrix Overlay */}
       <div
         ref={mountRef}
         className="w-full flex-1 min-h-0 bg-black/60 rounded-lg overflow-hidden border border-gray-900 cursor-grab active:cursor-grabbing relative"
-      />
+      >
+        {/* Pack Thermal Matrix HUD Overlay */}
+        <div className="absolute top-2 left-2 z-10 flex items-center gap-2 p-1.5 px-2.5 rounded-lg bg-[#090C15]/90 border border-gray-800 text-[9.5px] font-mono shadow-xl backdrop-blur-md pointer-events-none">
+          <div className="flex items-center gap-1.5">
+            <span className={`h-2 w-2 rounded-full ${packMetrics.max >= 85 ? 'bg-red-400 animate-ping' : packMetrics.max >= 65 ? 'bg-amber-400' : 'bg-cyan-400'} flex-shrink-0`} />
+            <span className="text-gray-400 font-bold">PACK MATRIX:</span>
+          </div>
+          <span className="text-gray-300">Max: <strong className="text-amber-400">{packMetrics.max.toFixed(1)}°C</strong></span>
+          <span className="text-gray-600">|</span>
+          <span className="text-gray-300">Min: <strong className="text-cyan-400">{packMetrics.min.toFixed(1)}°C</strong></span>
+          <span className="text-gray-600">|</span>
+          <span className="text-gray-300">ΔT: <strong className="text-purple-300">{packMetrics.delta.toFixed(1)}°C</strong></span>
+          <span className="text-gray-600">|</span>
+          <span className="text-amber-300 font-bold">HOTSPOT: {packMetrics.hotspot}</span>
+        </div>
+      </div>
 
       {/* Bottom Floating Controls Overlay */}
       <div className="flex items-center justify-between mt-1 pt-1 border-t border-gray-800/60 text-[10px] text-gray-400 px-1 font-mono flex-shrink-0 z-10">
@@ -854,19 +914,23 @@ const ThermalSchematic3D = memo(function ThermalSchematic3D({
           )}
         </div>
 
-        {/* Dual-Color Path Legend */}
-        <div className="flex items-center gap-2.5 text-[9.5px]">
+        {/* Dynamic Thermal Gradient Legend */}
+        <div className="flex items-center gap-2.5 text-[9px] flex-wrap">
           <div className="flex items-center gap-1">
             <span className="h-1.5 w-1.5 rounded-full bg-cyan-400 inline-block" />
-            <span>Cyan Coolant ({telemetry?.pump ? 'Active' : 'Standby'})</span>
+            <span>&lt;35°C (Cool)</span>
           </div>
           <div className="flex items-center gap-1">
             <span className="h-1.5 w-1.5 rounded-full bg-amber-400 inline-block" />
-            <span>Amber Heat Flux</span>
+            <span>45°–70°C (Warm)</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="h-1.5 w-1.5 rounded-full bg-red-400 inline-block" />
+            <span>&gt;85°C (High-Load)</span>
           </div>
           <div className="flex items-center gap-1">
             <span className="h-1.5 w-1.5 rounded-full bg-blue-300 inline-block" />
-            <span>Air Streamlines</span>
+            <span>Streamlines</span>
           </div>
         </div>
       </div>
@@ -875,6 +939,35 @@ const ThermalSchematic3D = memo(function ThermalSchematic3D({
 });
 
 export default ThermalSchematic3D;
+
+const TEMP_COLOR_STOPS = [
+  { temp: 20.0, color: new THREE.Color(0x06b6d4) }, // Electric cyan (< 35°C)
+  { temp: 35.0, color: new THREE.Color(0x38bdf8) }, // Light sky cyan
+  { temp: 48.0, color: new THREE.Color(0x10b981) }, // Mint / emerald (45°C)
+  { temp: 65.0, color: new THREE.Color(0xf59e0b) }, // Warm amber (45°C-70°C)
+  { temp: 85.0, color: new THREE.Color(0xf97316) }, // High-load orange (> 85°C)
+  { temp: 105.0, color: new THREE.Color(0xef4444) }, // Radiant red
+  { temp: 120.0, color: new THREE.Color(0xff0055) }  // Critical crimson
+];
+
+function getSmoothThreeTempColor(temp, targetColor) {
+  if (temp <= TEMP_COLOR_STOPS[0].temp) {
+    return targetColor.copy(TEMP_COLOR_STOPS[0].color);
+  }
+  const lastIdx = TEMP_COLOR_STOPS.length - 1;
+  if (temp >= TEMP_COLOR_STOPS[lastIdx].temp) {
+    return targetColor.copy(TEMP_COLOR_STOPS[lastIdx].color);
+  }
+  for (let i = 0; i < lastIdx; i++) {
+    const s1 = TEMP_COLOR_STOPS[i];
+    const s2 = TEMP_COLOR_STOPS[i + 1];
+    if (temp >= s1.temp && temp <= s2.temp) {
+      const factor = (temp - s1.temp) / (s2.temp - s1.temp);
+      return targetColor.lerpColors(s1.color, s2.color, factor);
+    }
+  }
+  return targetColor.copy(TEMP_COLOR_STOPS[0].color);
+}
 
 function getThreeTempColor(temp) {
   if (temp < 40.0) return 0x38bdf8; // Sky / Teal
