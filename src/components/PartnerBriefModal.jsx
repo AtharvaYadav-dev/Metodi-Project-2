@@ -56,6 +56,7 @@ export default function PartnerBriefModal({
   const [copied, setCopied] = useState(false);
   const [isEditingPartner, setIsEditingPartner] = useState(false);
   const [localPartnerInput, setLocalPartnerInput] = useState(partnerName);
+  const [copiedCmd, setCopiedCmd] = useState(null);
 
   // Sync initial tab when opened from different triggers (e.g. Header Tech Specs vs NDA & Specs)
   useEffect(() => {
@@ -82,8 +83,6 @@ export default function PartnerBriefModal({
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
-
-  if (!isOpen) return null;
 
   const currentPartnerDisplay = partnerName || 'Partner / OEM';
 
@@ -127,8 +126,6 @@ Confidentiality Status: ${ndaStatus === 'EXECUTED' ? 'Mutual NDA Executed & Auth
     setTimeout(() => setCopied(false), 2500);
   };
 
-  const [copiedCmd, setCopiedCmd] = useState(null);
-
   const handleCopyCommand = (cmdText) => {
     navigator.clipboard.writeText(cmdText);
     setCopiedCmd(cmdText);
@@ -149,6 +146,8 @@ Confidentiality Status: ${ndaStatus === 'EXECUTED' ? 'Mutual NDA Executed & Auth
   const safeKp = Number(pidGains?.kp ?? 2.5);
   const safeKi = Number(pidGains?.ki ?? 0.4);
   const safeKd = Number(pidGains?.kd ?? 0.8);
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/85 backdrop-blur-md animate-fadeIn">
