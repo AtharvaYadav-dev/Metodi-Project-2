@@ -180,11 +180,15 @@ The firmware processes live incoming JSON commands over USB Serial:
 1. **Dual Mode Switcher**:
    - **HIL Physics Simulator Mode (Default ON)**: Simulates battery joule heating ($I^2R$), ambient thermal diffusion, ram-air aerodynamic convection, and active refrigeration using the exact identical C++ algorithms.
    - **WebSerial Hardware Bridge Mode**: Direct 115200 baud USB connection to physical ESP32/STM32 microcontrollers with auto-detect and streaming telemetry.
-2. **Hero Visual 2D/2.5D Animated Thermal Schematic**:
-   - Dynamic Venturi flaps rotating $0^\circ$ to $90^\circ$ with speed-proportional ram-air streamlines.
-   - Closed fluid cooling circuit with dynamic color gradation (electric cyan to amber to crimson) and glowing flow particles.
-   - 16-Cell EV Battery Pack Heat Map with localized temperature diffusion gradients.
-   - Rotating fluid pump impeller and spinning radiator cooling fans.
+2. **Hero Visual: 3D Isometric EV Skateboard & Thermal Airflow Visualizer (Three.js WebGL)**:
+   - **3D EV Skateboard Platform**: Dark metallic chassis frame rails, suspension, and 4 wheels rotating at speed.
+   - **Dynamic Venturi Flaps (`0°–90°`)**: Physically rotate based on temperature delta and road speed, with dual-function ducting status (Ram Cooling vs Encapsulated Air Insulation).
+   - **Dual-Color Thermal & Coolant Loops**: Glowing amber/red heat conduction busbars across the core & electric cyan cooling conduits with animated circulating fluid particles.
+   - **3D Aerodynamic Airflow Streamlines**: Dynamic particles accelerating into the underbody venturi intake or deflecting around the cowl.
+   - **1-Click 2D/3D Toggle**: Switch between the rich 3D WebGL skateboard visualizer and the high-precision 2D CAD cross-section.
+3. **100% Full-Flat Viewport Lock (`h-dvh w-screen overflow-hidden`)**:
+   - Zero outer document scrolling on desktop screens.
+   - Asymmetric 2-column layout: Left column hosts the 3D visualizer and live oscilloscope; Right column hosts the state machine, tabbed calibration controls, and isolated non-janking terminal with intelligent bottom-pin auto-scroll.
 3. **Live Control & Stress-Test Panel**:
    - Interactive sliders for Ambient Temp, Vehicle Speed, Battery Load (kW), and Target Setpoint (°C).
    - One-click fault injection buttons for instant Tier-1 and founder demonstrations.
