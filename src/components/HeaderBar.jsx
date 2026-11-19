@@ -13,7 +13,7 @@ import {
   Zap,
   Activity,
   Fan,
-  Droplets,
+  Wind,
   ShieldCheck,
   Usb,
   Lock,
@@ -39,12 +39,14 @@ const HeaderBar = memo(function HeaderBar({
     temp_raw = 25.0,
     setpoint = 75.0,
     flap_deg = 0,
+    boost_active,
     pump = false,
     pwm_pct = 0.0,
     aux_kw = 0.0,
     fault = null
   } = telemetry || {};
 
+  const isBoosterActive = boost_active !== undefined ? boost_active : pump;
   const isFault = state === 'SYSTEM_FAULT' || !!fault;
 
   return (
@@ -192,17 +194,17 @@ const HeaderBar = memo(function HeaderBar({
             <span className={`inline-block px-1.5 py-0.2 rounded text-[10px] font-bold truncate max-w-full ${
               isFault
                 ? 'bg-red-950/80 text-red-300 border border-red-700 animate-pulse'
-                : state === 'ACTIVE_FLUID_LOOP'
+                : (state === 'ACTIVE_AIR_BOOST' || state === 'ACTIVE_FLUID_LOOP')
                 ? 'bg-amber-950/80 text-amber-300 border border-amber-600'
                 : state === 'PASSIVE_AERO_COOLING'
                 ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-600'
                 : 'bg-cyan-950/80 text-cyan-300 border border-cyan-800'
             }`}>
-              {state}
+              {state === 'ACTIVE_FLUID_LOOP' ? 'ACTIVE_AIR_BOOST' : state}
             </span>
           </div>
           <div className="text-[8.5px] text-gray-500 mt-0.5 truncate">
-            {isFault ? 'EMERGENCY CUTOFF' : state === 'ACTIVE_FLUID_LOOP' ? 'PID FLUID ACTIVE' : 'ZERO PUMP DRAW'}
+            {isFault ? 'EMERGENCY CUTOFF' : (state === 'ACTIVE_AIR_BOOST' || state === 'ACTIVE_FLUID_LOOP') ? 'ACTIVE AIR BOOST' : 'ZERO BLOWER DRAW'}
           </div>
         </div>
 
@@ -220,20 +222,20 @@ const HeaderBar = memo(function HeaderBar({
           </div>
         </div>
 
-        {/* Metric 4: Pump */}
+        {/* Metric 4: Active Air Booster */}
         <div className="rounded-lg border border-gray-800/80 bg-[#090C15] p-1.5 shadow-md">
           <div className="text-gray-400 text-[9.5px] mb-0.5 flex items-center gap-1">
-            <Droplets className="h-2.5 w-2.5 text-blue-400" /> 800V FLUID PUMP
+            <Wind className="h-2.5 w-2.5 text-cyan-400" /> ACTIVE AIR BOOSTER
           </div>
           <div className="mt-0.5">
             <span className={`inline-block px-1.5 py-0.2 rounded text-[10px] font-bold ${
-              pump ? 'bg-emerald-950 text-emerald-300 border border-emerald-700' : 'bg-gray-800 text-gray-400'
+              isBoosterActive ? 'bg-emerald-950 text-emerald-300 border border-emerald-700' : 'bg-gray-800 text-gray-400'
             }`}>
-              {pump ? 'CIRCULATING' : 'STANDBY (0W)'}
+              {isBoosterActive ? 'BOOST ENGAGED' : 'STANDBY (0W)'}
             </span>
           </div>
           <div className="text-[8.5px] text-gray-500 mt-0.5 truncate">
-            {pump ? 'ACTIVE LOOP' : 'ZERO AUX DRAW'}
+            {isBoosterActive ? 'FORCED CHANNEL' : 'ZERO AUX DRAW'}
           </div>
         </div>
 
@@ -261,7 +263,7 @@ const HeaderBar = memo(function HeaderBar({
             <span className="text-[9.5px] text-gray-400">kW</span>
           </div>
           <div className="text-[8.5px] text-gray-500 mt-0.5 truncate">
-            RAM VS PUMP
+            RAM VS ACTIVE AIR
           </div>
         </div>
       </div>

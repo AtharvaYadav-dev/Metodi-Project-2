@@ -95,21 +95,22 @@ export default function PartnerBriefModal({
   };
 
   const handleCopySummary = () => {
+    const isBoosterOn = Boolean(telemetry?.boost_active ?? telemetry?.pump);
     const text = `AEROTHERM R&D // PHASE 2 HYBRID EV THERMAL MANAGEMENT SYSTEM
 Technical Dossier & Engineering Specification
 Document Scope: ${currentPartnerDisplay}
 Confidentiality Status: ${ndaStatus === 'EXECUTED' ? 'Mutual NDA Executed & Authorized' : 'Pre-NDA Review / Confidential Evaluation'}
 
 1. Architecture Overview:
-- Topology: Staged Passive Aerodynamic (0°-90° Venturi Flaps) + Active Liquid Loop (800V DC Pump & PID Chiller)
-- Deterministic State Machine: S0 (Idle), S1 (Passive Aero), S2 (Active Fluid Loop), S3 (ASIL-B Fault)
-- Energy Impact: Eliminates 1.5 kW - 2.8 kW auxiliary chiller/pump load during aerodynamic cooling regime.
+- Topology: Staged Passive Aerodynamic (0°-90° Venturi Flaps) + Underbody Airflow Tunnel + Active Thermal Air Booster (PID PWM Control)
+- Deterministic State Machine: S0 (Idle), S1 (Passive Aero), S2 (Active Air Boost), S3 (ASIL-B Fault)
+- Energy Impact: Eliminates 1.5 kW - 2.8 kW auxiliary power load during aerodynamic cooling regime.
 
 2. Live Operating Envelope Snapshot:
 - Battery Core Temp: ${(telemetry?.temp_filt || 25.0).toFixed(1)}°C (Setpoint: ${setpoint.toFixed(0)}°C)
 - Current State: ${telemetry?.state || 'IDLE_MODE'}
-- Venturi Flaps: ${telemetry?.flap_deg || 0}° | Fluid Pump: ${telemetry?.pump ? 'Active' : 'Standby'}
-- Chiller PWM Duty: ${(telemetry?.pwm_pct || 0).toFixed(1)}% | Aux Power Saved: +${(telemetry?.aux_kw || 0).toFixed(2)} kW
+- Venturi Flaps: ${telemetry?.flap_deg || 0}° | Active Air Booster: ${isBoosterOn ? 'Active' : 'Standby'}
+- Booster PWM Duty: ${(telemetry?.pwm_pct || 0).toFixed(1)}% | Aux Power Saved: +${(telemetry?.aux_kw || 0).toFixed(2)} kW
 
 3. Hardware & Interface Parameters:
 - Target Microcontroller: ESP32 / STM32 (PlatformIO C++17)
@@ -131,12 +132,15 @@ Confidentiality Status: ${ndaStatus === 'EXECUTED' ? 'Mutual NDA Executed & Auth
     temp_raw = 25.0,
     speed_kmh = 85,
     flap_deg = 0,
+    boost_active,
     pump = false,
     pwm_pct = 0.0,
     aux_kw = 0.0,
     kwh_saved = 0.0,
     fault = null
   } = telemetry || {};
+
+  const isBoosterActive = Boolean(boost_active !== undefined ? boost_active : pump);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/85 backdrop-blur-md animate-fadeIn">
@@ -280,10 +284,10 @@ Confidentiality Status: ${ndaStatus === 'EXECUTED' ? 'Mutual NDA Executed & Auth
               <div className="p-3 rounded-xl bg-[#0C101C] border border-cyan-950/80">
                 <div className="flex items-center gap-2 mb-1.5 text-cyan-300 font-bold text-xs">
                   <Zap className="h-3.5 w-3.5 text-cyan-400" />
-                  <span>STAGED HYBRID PASSIVE-ACTIVE THERMAL TOPOLOGY</span>
+                  <span>STAGED HYBRID PASSIVE-ACTIVE AIR THERMAL TOPOLOGY</span>
                 </div>
                 <p className="text-gray-300 text-[11px] leading-relaxed font-sans">
-                  Conventional production EV thermal architectures continuously cycle high-voltage 800V coolant pumps and refrigeration compressors even under steady-state highway conditions, imposing a parasitic penalty of <strong>1.5 kW to 3.5 kW</strong>. AeroTherm Phase 2 implements a <strong>staged hybrid aerodynamic-fluid architecture</strong> that leverages ambient ram-air aerodynamics before energizing active liquid cooling.
+                  Conventional production EV thermal architectures continuously cycle heavy refrigeration compressors and high-parasitic auxiliary loops even under steady-state highway conditions, imposing a parasitic penalty of <strong>1.5 kW to 3.5 kW</strong>. AeroTherm Phase 2 implements a <strong>staged hybrid aerodynamic-active air architecture</strong> that leverages ambient ram-air aerodynamics through an underbody tunnel and battery-pack integrated channel before energizing active forced-air booster cooling.
                 </p>
               </div>
 
@@ -294,7 +298,7 @@ Confidentiality Status: ${ndaStatus === 'EXECUTED' ? 'Mutual NDA Executed & Auth
                     <span>PARASITIC AUX REDUCTION</span>
                   </div>
                   <p className="text-gray-400 text-[10.5px] font-sans leading-normal">
-                    Under moderate thermal loads and highway cruising speeds (40°C–65°C), dynamic underbody Venturi flaps deploy (0°–90°) to channel ram-air cooling across the pack surface. 800V liquid pump draw is maintained at <strong>0W</strong>, saving up to <strong>2.8 kW</strong>.
+                    Under moderate thermal loads and highway cruising speeds (40°C–65°C), dynamic underbody Venturi flaps deploy (0°–90°) to channel ram-air cooling across the pack surface. Active air booster draw is maintained at <strong>0W</strong>, saving up to <strong>2.8 kW</strong>.
                   </p>
                   <div className="pt-1 text-[10px] text-emerald-300 font-bold">
                     Range Extension: +3.8% to +6.2%
@@ -307,7 +311,7 @@ Confidentiality Status: ${ndaStatus === 'EXECUTED' ? 'Mutual NDA Executed & Auth
                     <span>DETERMINISTIC PIPELINE</span>
                   </div>
                   <p className="text-gray-400 text-[10.5px] font-sans leading-normal">
-                    Strict, deterministic 4-state Mealy/Moore state machine (<code className="text-cyan-300">S0 IDLE</code>, <code className="text-cyan-300">S1 PASSIVE AERO</code>, <code className="text-cyan-300">S2 FLUID LOOP</code>, <code className="text-cyan-300">S3 FAULT</code>). Zero race conditions, 1.5°C hysteresis damping, and hardware-enforced fail-safe positions.
+                    Strict, deterministic 4-state Mealy/Moore state machine (<code className="text-cyan-300">S0 IDLE</code>, <code className="text-cyan-300">S1 PASSIVE AERO</code>, <code className="text-cyan-300">S2 ACTIVE AIR BOOST</code>, <code className="text-cyan-300">S3 FAULT</code>). Zero race conditions, 1.5°C hysteresis damping, and hardware-enforced fail-safe positions.
                   </p>
                   <div className="pt-1 text-[10px] text-cyan-300 font-bold">
                     ISO 26262 ASIL-B Determinism
@@ -320,7 +324,7 @@ Confidentiality Status: ${ndaStatus === 'EXECUTED' ? 'Mutual NDA Executed & Auth
                     <span>ANTI-WINDUP PID REGULATION</span>
                   </div>
                   <p className="text-gray-400 text-[10.5px] font-sans leading-normal">
-                    When temperature enters S2 (≥65°C), active liquid cooling engages. An anti-windup clamped PID controller regulates chiller PWM duty cycle (0–100%) with derivative-on-measurement to lock pack temperature cleanly at setpoint without overshoot.
+                    When temperature enters S2 (≥65°C), active air booster cooling engages. An anti-windup clamped PID controller regulates air booster actuator PWM duty cycle (0–100%) with derivative-on-measurement to lock pack temperature cleanly at setpoint without overshoot.
                   </p>
                   <div className="pt-1 text-[10px] text-purple-300 font-bold">
                     Overshoot: &lt; 0.8°C Steady-State
@@ -339,28 +343,28 @@ Confidentiality Status: ${ndaStatus === 'EXECUTED' ? 'Mutual NDA Executed & Auth
                     <div className="text-cyan-400 font-bold">S0: IDLE_MODE</div>
                     <div className="text-gray-400 text-[9px] mt-0.5">T &lt; 40.0°C</div>
                     <div className="text-gray-300 mt-1">Flaps: 0° (Sealed)</div>
-                    <div className="text-gray-300">Pump: OFF (0W)</div>
+                    <div className="text-gray-300">Booster: OFF (0W)</div>
                     <div className="text-gray-300">PWM: 0.0%</div>
                   </div>
                   <div className="p-2 rounded-lg bg-black/40 border border-emerald-900/60">
                     <div className="text-emerald-400 font-bold">S1: PASSIVE_AERO</div>
                     <div className="text-gray-400 text-[9px] mt-0.5">40.0°C ≤ T &lt; 65.0°C</div>
                     <div className="text-gray-300 mt-1">Flaps: 0°–90° Ram Air</div>
-                    <div className="text-gray-300">Pump: OFF (0W)</div>
+                    <div className="text-gray-300">Booster: OFF (0W)</div>
                     <div className="text-gray-300">PWM: 0.0%</div>
                   </div>
                   <div className="p-2 rounded-lg bg-black/40 border border-amber-900/60">
-                    <div className="text-amber-400 font-bold">S2: FLUID_LOOP</div>
+                    <div className="text-amber-400 font-bold">S2: ACTIVE_AIR_BOOST</div>
                     <div className="text-gray-400 text-[9px] mt-0.5">65.0°C ≤ T &lt; 110.0°C</div>
                     <div className="text-gray-300 mt-1">Flaps: 90° (Full Open)</div>
-                    <div className="text-gray-300">Pump: ON (800V DC)</div>
+                    <div className="text-gray-300">Booster: ON (Channel Air)</div>
                     <div className="text-gray-300">PWM: PID Clamped 0–100%</div>
                   </div>
                   <div className="p-2 rounded-lg bg-black/40 border border-red-900/60">
                     <div className="text-red-400 font-bold">S3: SYSTEM_FAULT</div>
                     <div className="text-gray-400 text-[9px] mt-0.5">T ≥ 110.0°C / ERR</div>
                     <div className="text-gray-300 mt-1">Flaps: 90° Fail-Safe</div>
-                    <div className="text-gray-300">Pump: Relay Opened</div>
+                    <div className="text-gray-300">Booster: Relay Opened</div>
                     <div className="text-gray-300">PWM: 0.0% Interlock Cut</div>
                   </div>
                 </div>
@@ -384,7 +388,7 @@ Confidentiality Status: ${ndaStatus === 'EXECUTED' ? 'Mutual NDA Executed & Auth
                   <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
                     state === 'SYSTEM_FAULT'
                       ? 'bg-red-950 text-red-300 border border-red-700 animate-pulse'
-                      : state === 'ACTIVE_FLUID_LOOP'
+                      : (state === 'ACTIVE_AIR_BOOST' || state === 'ACTIVE_FLUID_LOOP')
                       ? 'bg-amber-950 text-amber-300 border border-amber-600'
                       : state === 'PASSIVE_AERO_COOLING'
                       ? 'bg-emerald-950 text-emerald-300 border border-emerald-600'
@@ -420,10 +424,10 @@ Confidentiality Status: ${ndaStatus === 'EXECUTED' ? 'Mutual NDA Executed & Auth
                   </div>
                   <div className="p-2 rounded bg-black/50 border border-gray-800">
                     <span className="text-gray-400 flex items-center gap-1">
-                      <Droplets className="h-3 w-3 text-purple-400" /> CHILLER PWM / PUMP
+                      <Wind className="h-3 w-3 text-purple-400" /> AIR BOOSTER / PWM
                     </span>
                     <div className="text-purple-300 font-bold text-sm mt-0.5">{pwm_pct.toFixed(1)}%</div>
-                    <span className="text-gray-500 text-[8.5px]">Pump: {pump ? '800V ON' : 'STANDBY 0W'}</span>
+                    <span className="text-gray-500 text-[8.5px]">Booster: {isBoosterActive ? 'ACTIVE' : 'STANDBY 0W'}</span>
                   </div>
                 </div>
 
@@ -444,7 +448,7 @@ Confidentiality Status: ${ndaStatus === 'EXECUTED' ? 'Mutual NDA Executed & Auth
                         <td className="p-1.5 font-bold text-cyan-400">T1 (IDLE / PASSIVE AERO)</td>
                         <td className="p-1.5">40.0°C</td>
                         <td className="p-1.5">{temp_filt.toFixed(1)}°C</td>
-                        <td className="p-1.5">Flaps 0°, Pump 0W, PWM 0%</td>
+                        <td className="p-1.5">Flaps 0°, Booster 0W, PWM 0%</td>
                         <td className="p-1.5">
                           <span className={`px-1 rounded ${temp_filt < 40 ? 'bg-cyan-900 text-cyan-200' : 'bg-gray-800 text-gray-400'}`}>
                             {temp_filt < 40 ? 'ACTIVE (S0)' : 'PASSED'}
@@ -452,10 +456,10 @@ Confidentiality Status: ${ndaStatus === 'EXECUTED' ? 'Mutual NDA Executed & Auth
                         </td>
                       </tr>
                       <tr className={temp_filt >= 40 && temp_filt < 65 ? 'bg-emerald-950/20' : ''}>
-                        <td className="p-1.5 font-bold text-emerald-400">T2 (AERO / ACTIVE FLUID)</td>
+                        <td className="p-1.5 font-bold text-emerald-400">T2 (AERO / ACTIVE AIR BOOST)</td>
                         <td className="p-1.5">65.0°C</td>
                         <td className="p-1.5">{temp_filt.toFixed(1)}°C</td>
-                        <td className="p-1.5">Flaps 0°–90° Ram Scoop, Pump 0W</td>
+                        <td className="p-1.5">Flaps 0°–90° Ram Scoop, Booster 0W</td>
                         <td className="p-1.5">
                           <span className={`px-1 rounded ${temp_filt >= 40 && temp_filt < 65 ? 'bg-emerald-900 text-emerald-200' : 'bg-gray-800 text-gray-400'}`}>
                             {temp_filt >= 40 && temp_filt < 65 ? 'ACTIVE (S1)' : temp_filt >= 65 ? 'PASSED' : 'STANDBY'}
@@ -466,7 +470,7 @@ Confidentiality Status: ${ndaStatus === 'EXECUTED' ? 'Mutual NDA Executed & Auth
                         <td className="p-1.5 font-bold text-amber-400">REGULATION BAND</td>
                         <td className="p-1.5">65.0°C – 110.0°C</td>
                         <td className="p-1.5">{temp_filt.toFixed(1)}°C</td>
-                        <td className="p-1.5">800V Pump ON, PID PWM 0–100%</td>
+                        <td className="p-1.5">Air Booster ON, PID PWM 0–100%</td>
                         <td className="p-1.5">
                           <span className={`px-1 rounded ${temp_filt >= 65 && temp_filt < 110 ? 'bg-amber-900 text-amber-200' : 'bg-gray-800 text-gray-400'}`}>
                             {temp_filt >= 65 && temp_filt < 110 ? 'ACTIVE (S2)' : temp_filt >= 110 ? 'EXCEEDED' : 'STANDBY'}
@@ -514,7 +518,7 @@ Confidentiality Status: ${ndaStatus === 'EXECUTED' ? 'Mutual NDA Executed & Auth
                       </tr>
                       <tr>
                         <td className="py-1 text-cyan-300 font-bold">GPIO 25</td>
-                        <td>Fluid Chiller PWM</td>
+                        <td>Active Air Booster PWM</td>
                         <td>20 kHz PWM (0–100% Duty)</td>
                         <td>0% (Kill-Switch)</td>
                       </tr>
@@ -526,7 +530,7 @@ Confidentiality Status: ${ndaStatus === 'EXECUTED' ? 'Mutual NDA Executed & Auth
                       </tr>
                       <tr>
                         <td className="py-1 text-cyan-300 font-bold">GPIO 27</td>
-                        <td>800V Pump Relay</td>
+                        <td>Air Booster Power Relay</td>
                         <td>Active High Logic (3.3V)</td>
                         <td>LOW (De-energized)</td>
                       </tr>
@@ -590,7 +594,7 @@ Confidentiality Status: ${ndaStatus === 'EXECUTED' ? 'Mutual NDA Executed & Auth
   "setpoint": ${setpoint.toFixed(1)},
   "speed_kmh": ${speed_kmh},
   "flap_deg": ${flap_deg},
-  "pump": ${pump ? 'true' : 'false'},
+  "boost_active": ${isBoosterActive ? 'true' : 'false'},
   "pwm_pct": ${pwm_pct.toFixed(1)},
   "aux_kw": ${aux_kw.toFixed(2)},
   "kwh_saved": ${kwh_saved.toFixed(4)},

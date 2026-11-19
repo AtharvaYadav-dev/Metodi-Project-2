@@ -44,9 +44,9 @@ All analog sensing is routed strictly through **ADC1** to prevent DMA starvation
 | **Battery Temp Sensor** | `GPIO 34` | `ADC1_CH6` | Input-only (GPI). Steinhart-Hart / PT1000 conditioned analog voltage (0–3.3V). |
 | **Vehicle Speed Input** | `GPIO 35` | `ADC1_CH7` | Input-only (GPI). Analog Hall wheel pulse / simulated CAN road speed (0–200 km/h). |
 | **Venturi Flap Servo** | `GPIO 18` | `LEDC CH 0` | 50 Hz PWM (1ms–2ms pulse width for 0°–90° aerodynamic flap actuation). |
-| **Fluid Pump Relay** | `GPIO 19` | `GPIO OUT` | Digital Active-HIGH output driving 800V DC pump contactor / isolated MOSFET. |
-| **Thermal Chiller PWM** | `GPIO 21` | `LEDC CH 1` | 5 kHz PWM (0–1023 duty ticks) driving radiator cooling fan / Peltier chiller. |
-| **Optical Heartbeat LED** | `GPIO 2` | `GPIO OUT` | Status beacon: 1Hz (IDLE), 2.5Hz (ACTIVE FLUID LOOP), 6.25Hz (SYSTEM FAULT). |
+| **Active Air Booster Relay** | `GPIO 19` | `GPIO OUT` | Digital Active-HIGH output driving high-CFM air booster contactor / isolated MOSFET. |
+| **Active Air Booster PWM** | `GPIO 21` | `LEDC CH 1` | 5 kHz PWM (0–1023 duty ticks) driving forced-air channel actuator. |
+| **Optical Heartbeat LED** | `GPIO 2` | `GPIO OUT` | Status beacon: 1Hz (IDLE), 2.5Hz (ACTIVE AIR BOOST), 6.25Hz (SYSTEM FAULT). |
 
 ---
 
@@ -58,7 +58,7 @@ The firmware implements a strictly non-blocking, deterministic state machine exe
                   ┌───────────────────────────────┐
                   │    STATE 0: IDLE_MODE         │
                   │  Temp < 40.0°C (Flaps 0°,     │
-                  │  Pump OFF, PWM 0%, 1Hz telem) │
+                  │  Booster OFF, PWM 0%, 1Hz telem)│
                   └──────────────┬────────────────┘
                                  │
                      Temp >= 40.0°C (T1)
@@ -69,7 +69,7 @@ The firmware implements a strictly non-blocking, deterministic state machine exe
                   │ STATE 1: PASSIVE_AERO_COOLING │
                   │  40.0°C <= Temp < 65.0°C      │
                   │  Venturi Flaps: 0° -> 90°     │
-                  │  Fluid Pump: OFF (0W Aux)     │
+                  │  Air Booster: OFF (0W Aux)    │
                   │  Power Saved: 0.65kW - 2.50kW │
                   └──────────────┬────────────────┘
                                  │
@@ -78,9 +78,9 @@ The firmware implements a strictly non-blocking, deterministic state machine exe
                                  │
                                  ▼
                   ┌───────────────────────────────┐
-                  │  STATE 2: ACTIVE_FLUID_LOOP   │
+                  │  STATE 2: ACTIVE_AIR_BOOST    │
                   │  65.0°C <= Temp < 110.0°C     │
-                  │  Fluid Pump: ON (800V Loop)   │
+                  │  Air Booster: ON (Forced Air) │
                   │  Venturi Flaps: Modulated     │
                   │  PID PWM: 0-100% (Lock @ 75°C)│
                   └──────────────┬────────────────┘
@@ -101,15 +101,15 @@ The firmware implements a strictly non-blocking, deterministic state machine exe
 ### State Specifications:
 1. **STATE 0 (`IDLE_MODE`):**
    - Condition: $T_{filtered} < 40.0^\circ\text{C}$ (`T1`).
-   - Actuators: Venturi aerodynamic flaps sealed ($0^\circ$), 800V Fluid Pump `OFF`, Thermal PWM `0.0%`.
+   - Actuators: Venturi aerodynamic flaps sealed ($0^\circ$), Air Booster `OFF`, Thermal PWM `0.0%`.
    - Telemetry: Transmits low-frequency 1 Hz heartbeat telemetry packets.
 2. **STATE 1 (`PASSIVE_AERO_COOLING`):**
    - Condition: $40.0^\circ\text{C} \le T_{filtered} < 65.0^\circ\text{C}$ (`T2`).
    - Actuators: Venturi aerodynamic flaps deploy proportionally ($0^\circ$ to $90^\circ$) based on vehicle dynamic pressure and thermal delta $\Delta T = \frac{T - T_1}{T_2 - T_1}$.
-   - Auxiliary Efficiency: 800V active pump remains completely `OFF` (zero auxiliary battery draw), saving **+0.65 kW to +2.50 kW** of parasitic electrical load.
-3. **STATE 2 (`ACTIVE_FLUID_LOOP`):**
+   - Auxiliary Efficiency: Active air booster remains completely `OFF` (zero auxiliary battery draw), saving **+0.65 kW to +2.50 kW** of parasitic electrical load.
+3. **STATE 2 (`ACTIVE_AIR_BOOST`):**
    - Condition: $65.0^\circ\text{C} \le T_{filtered} < 110.0^\circ\text{C}$ (`T_CRIT`).
-   - Actuators: Fluid pump engages (`ON`), Venturi flaps modulated ($45^\circ$ to $90^\circ$) to feed the radiator core, and **closed-loop PID PWM actuation ($0–100\%$)** locks battery temperature smoothly at the target setpoint ($75.0^\circ\text{C}$) with zero thermal hunting.
+   - Actuators: Active air booster engages (`ON`), Venturi flaps modulated ($45^\circ$ to $90^\circ$) to feed the integrated pack channels, and **closed-loop PID PWM actuation ($0–100\%$)** locks battery temperature smoothly at the target setpoint ($75.0^\circ\text{C}$) with zero thermal hunting.
 4. **STATE 3 (`SYSTEM_FAULT`):**
    - Condition: $T_{filtered} \ge 110.0^\circ\text{C}$ (`T_CRIT`) OR sensor disconnect / out-of-range ($<-20^\circ\text{C}$ or $>150^\circ\text{C}$).
    - Action: Sub-millisecond hardware safety interlock. Cuts all high-voltage PWM actuators immediately to `0%`, forces Venturi flaps to maximum fail-safe cooling aperture ($90^\circ$), and emits critical JSON diagnostic alerts.
@@ -139,12 +139,13 @@ Diagnostic boundary interlocks flag open-circuit sensor disconnects ($T < -20^\c
 ```json
 {
   "ts": 12400,
-  "state": "ACTIVE_FLUID_LOOP",
+  "state": "ACTIVE_AIR_BOOST",
   "temp_raw": 68.42,
   "temp_filt": 68.15,
   "setpoint": 75.0,
   "speed_kmh": 85,
   "flap_deg": 64,
+  "boost_active": true,
   "pump": true,
   "pwm_pct": 42.5,
   "pid": { "p": 12.4, "i": 25.1, "d": 5.0 },
@@ -178,12 +179,12 @@ The firmware processes live incoming JSON commands over USB Serial:
 ## 🖥️ Digital Twin Features & Architecture (`/dashboard`)
 
 1. **Dual Mode Switcher**:
-   - **HIL Physics Simulator Mode (Default ON)**: Simulates battery joule heating ($I^2R$), ambient thermal diffusion, ram-air aerodynamic convection, and active refrigeration using the exact identical C++ algorithms.
+   - **HIL Physics Simulator Mode (Default ON)**: Simulates battery joule heating ($I^2R$), ambient thermal diffusion, ram-air aerodynamic convection, and active air booster cooling using the exact identical C++ algorithms.
    - **WebSerial Hardware Bridge Mode**: Direct 115200 baud USB connection to physical ESP32/STM32 microcontrollers with auto-detect and streaming telemetry.
 2. **Hero Visual: 3D Isometric EV Skateboard & Thermal Airflow Visualizer (Three.js WebGL)**:
    - **3D EV Skateboard Platform**: Dark metallic chassis frame rails, suspension, and 4 wheels rotating at speed.
    - **Dynamic Venturi Flaps (`0°–90°`)**: Physically rotate based on temperature delta and road speed, with dual-function ducting status (Ram Cooling vs Encapsulated Air Insulation).
-   - **Dual-Color Thermal & Coolant Loops**: Glowing amber/red heat conduction busbars across the core & electric cyan cooling conduits with animated circulating fluid particles.
+   - **Pack-Integrated Air Channels & Active Air Booster**: Glowing amber/red heat conduction busbars across the core & electric cyan underbody airflow conduits with animated streamline flow particles.
    - **3D Aerodynamic Airflow Streamlines**: Dynamic particles accelerating into the underbody venturi intake or deflecting around the cowl.
    - **1-Click 2D/3D Toggle**: Switch between the rich 3D WebGL skateboard visualizer and the high-precision 2D CAD cross-section.
 3. **100% Full-Flat Viewport Lock (`h-dvh w-screen overflow-hidden`)**:

@@ -8,7 +8,7 @@
  *          - Animated ram-air aerodynamic streamlines reacting to speed and flap angle
  *          - Dual-color thermal loop:
  *              * Glowing radiant amber/red battery thermal heat path (conductive busbars & heat flux)
- *              * Vivid neon cyan/blue cooling flow paths with circulating fluid particles
+ *              * Vivid cyan/sky-blue active airflow channels with streamline particles
  *          - 16-cell EV battery pack matrix with dynamic localized temperature color interpolation
  *          - Dual-function ducting indicator (Active Ram Airflow vs Encapsulated Air Insulation)
  *          - Camera preset view buttons (ISO 3D, TOP-DOWN, FRONT AERO, SIDE PROFILE) & Auto-Orbit
@@ -22,7 +22,7 @@ import {
   Compass,
   Eye,
   Wind,
-  Droplets,
+  Zap,
   Layers,
   Flame,
   Box
@@ -429,7 +429,7 @@ const ThermalSchematic3D = memo(function ThermalSchematic3D({
     }
 
     // =========================================================================
-    // 5. DUAL-COLOR THERMAL & COOLANT LOOPS
+    // 5. PACK-INTEGRATED AIRFLOW CHANNELS & ACTIVE AIR BOOSTER
     // =========================================================================
     // (A) Radiant Amber/Gold Internal Heat Conduction Busbars
     const heatBusbarMat = new THREE.MeshStandardMaterial({
@@ -450,8 +450,8 @@ const ThermalSchematic3D = memo(function ThermalSchematic3D({
       heatBusbars.push(barMesh);
     }
 
-    // (B) Electric Cyan Closed Coolant Loop Tubing
-    const pipePoints = [
+    // (B) Battery-Pack Integrated Airflow Channel & Underbody Ducting
+    const airChannelPoints = [
       new THREE.Vector3(-12.5, 0.8, 3.2),
       new THREE.Vector3(-6.0, 0.3, 5.0),
       new THREE.Vector3(0.0, 0.2, 5.0),
@@ -462,10 +462,10 @@ const ThermalSchematic3D = memo(function ThermalSchematic3D({
       new THREE.Vector3(-12.5, 0.8, -3.2),
       new THREE.Vector3(-13.0, 2.2, 0.0)
     ];
-    const pipeCurve = new THREE.CatmullRomCurve3(pipePoints, true);
+    const airChannelCurve = new THREE.CatmullRomCurve3(airChannelPoints, true);
 
-    const pipeTubeGeo = new THREE.TubeGeometry(pipeCurve, 54, 0.35, 8, true);
-    const pipeMat = new THREE.MeshStandardMaterial({
+    const airChannelTubeGeo = new THREE.TubeGeometry(airChannelCurve, 54, 0.35, 8, true);
+    const airChannelMat = new THREE.MeshStandardMaterial({
       color: 0x22d3ee,
       emissive: 0x06b6d4,
       emissiveIntensity: 0.85,
@@ -474,46 +474,46 @@ const ThermalSchematic3D = memo(function ThermalSchematic3D({
       metalness: 0.35,
       roughness: 0.2
     });
-    const pipeMesh = new THREE.Mesh(pipeTubeGeo, pipeMat);
-    chassisGroup.add(pipeMesh);
+    const airChannelMesh = new THREE.Mesh(airChannelTubeGeo, airChannelMat);
+    chassisGroup.add(airChannelMesh);
 
-    // 800V Fluid Circulation Pump Housing
-    const pumpGeo = new THREE.CylinderGeometry(1.25, 1.25, 1.65, 16);
-    const pumpMat = new THREE.MeshStandardMaterial({
+    // High-Performance Active Air Booster / Blower Unit Housing
+    const airBoosterGeo = new THREE.CylinderGeometry(1.25, 1.25, 1.65, 16);
+    const airBoosterMat = new THREE.MeshStandardMaterial({
       color: 0x10b981,
       emissive: 0x065f46,
       emissiveIntensity: 0.5,
       metalness: 0.85,
       roughness: 0.25
     });
-    const pumpMesh = new THREE.Mesh(pumpGeo, pumpMat);
-    pumpMesh.position.set(-4.0, 0.65, 5.2);
-    chassisGroup.add(pumpMesh);
+    const airBoosterMesh = new THREE.Mesh(airBoosterGeo, airBoosterMat);
+    airBoosterMesh.position.set(-4.0, 0.65, 5.2);
+    chassisGroup.add(airBoosterMesh);
 
-    // Coolant Fluid Flow Particles along Curve
-    const fluidCount = 48;
-    const fluidParticlesGeo = new THREE.BufferGeometry();
-    const fluidPositions = new Float32Array(fluidCount * 3);
-    const fluidProgress = new Float32Array(fluidCount);
+    // Active Airflow Channel Streamline Particles along Duct
+    const channelAirCount = 48;
+    const channelAirParticlesGeo = new THREE.BufferGeometry();
+    const channelAirPositions = new Float32Array(channelAirCount * 3);
+    const channelAirProgress = new Float32Array(channelAirCount);
 
-    for (let i = 0; i < fluidCount; i++) {
-      fluidProgress[i] = i / fluidCount;
-      const pt = pipeCurve.getPointAt(fluidProgress[i]);
-      fluidPositions[i * 3] = pt.x;
-      fluidPositions[i * 3 + 1] = pt.y;
-      fluidPositions[i * 3 + 2] = pt.z;
+    for (let i = 0; i < channelAirCount; i++) {
+      channelAirProgress[i] = i / channelAirCount;
+      const pt = airChannelCurve.getPointAt(channelAirProgress[i]);
+      channelAirPositions[i * 3] = pt.x;
+      channelAirPositions[i * 3 + 1] = pt.y;
+      channelAirPositions[i * 3 + 2] = pt.z;
     }
 
-    fluidParticlesGeo.setAttribute('position', new THREE.BufferAttribute(fluidPositions, 3));
-    const fluidParticleMat = new THREE.PointsMaterial({
+    channelAirParticlesGeo.setAttribute('position', new THREE.BufferAttribute(channelAirPositions, 3));
+    const channelAirParticleMat = new THREE.PointsMaterial({
       color: 0x22d3ee,
       size: 0.95,
       transparent: true,
       opacity: 0.95,
       blending: THREE.AdditiveBlending
     });
-    const fluidParticles = new THREE.Points(fluidParticlesGeo, fluidParticleMat);
-    chassisGroup.add(fluidParticles);
+    const channelAirParticles = new THREE.Points(channelAirParticlesGeo, channelAirParticleMat);
+    chassisGroup.add(channelAirParticles);
 
     // =========================================================================
     // 6. CRISP ICE-BLUE / WHITE-CYAN AERODYNAMIC STREAMLINES
@@ -630,7 +630,7 @@ const ThermalSchematic3D = memo(function ThermalSchematic3D({
 
     let lastMetricsUpdate = 0;
     const tempColorHelper = new THREE.Color();
-    const coolantColorHelper = new THREE.Color();
+    const channelAirColorHelper = new THREE.Color();
 
     const animate = (now) => {
       const dt = Math.min((now - lastTime) / 1000, 0.1);
@@ -641,12 +641,17 @@ const ThermalSchematic3D = memo(function ThermalSchematic3D({
         temp_filt = 25.0,
         speed_kmh = 0,
         flap_deg = 0,
+        boost_active,
         pump = false,
         pwm_pct = 0,
         battery_load_kw = 35,
+        channel_air_temp,
         coolant_temp = 28.0,
         fault = null
       } = telem;
+
+      const isBoosterActive = Boolean(boost_active !== undefined ? boost_active : pump);
+      const airTemp = channel_air_temp !== undefined ? channel_air_temp : coolant_temp;
 
       // 1. Wheel Rotation (Tied to road speed)
       const wheelRotSpeed = (speed_kmh / 3.6 / 0.3) * dt;
@@ -664,27 +669,27 @@ const ThermalSchematic3D = memo(function ThermalSchematic3D({
       flapHingeLeft.rotation.z += (targetFlapRad - flapHingeLeft.rotation.z) * 0.15;
       flapHingeRight.rotation.z += (targetFlapRad - flapHingeRight.rotation.z) * 0.15;
 
-      // 4. Coolant Fluid Particles Movement & Dynamic Temperature Tinting
-      if (pump) {
-        fluidParticleMat.opacity = 0.95;
-        const fluidSpeed = (0.10 + (pwm_pct / 100.0) * 0.30) * dt;
-        const posAttr = fluidParticlesGeo.attributes.position;
+      // 4. Active Air Booster & Pack Channel Streamline Particles Movement
+      if (isBoosterActive) {
+        channelAirParticleMat.opacity = 0.95;
+        const airFlowSpeed = (0.10 + (pwm_pct / 100.0) * 0.30) * dt;
+        const posAttr = channelAirParticlesGeo.attributes.position;
 
-        getSmoothThreeTempColor(coolant_temp || 30.0, coolantColorHelper);
-        fluidParticleMat.color.copy(coolantColorHelper);
-        pipeMat.color.copy(coolantColorHelper);
-        pipeMat.emissive.copy(coolantColorHelper);
-        pipeMat.emissiveIntensity = 0.5 + (pwm_pct / 100.0) * 0.45;
+        getSmoothThreeTempColor(airTemp || 30.0, channelAirColorHelper);
+        channelAirParticleMat.color.copy(channelAirColorHelper);
+        airChannelMat.color.copy(channelAirColorHelper);
+        airChannelMat.emissive.copy(channelAirColorHelper);
+        airChannelMat.emissiveIntensity = 0.5 + (pwm_pct / 100.0) * 0.45;
 
-        for (let i = 0; i < fluidCount; i++) {
-          fluidProgress[i] = (fluidProgress[i] + fluidSpeed) % 1.0;
-          const pt = pipeCurve.getPointAt(fluidProgress[i]);
+        for (let i = 0; i < channelAirCount; i++) {
+          channelAirProgress[i] = (channelAirProgress[i] + airFlowSpeed) % 1.0;
+          const pt = airChannelCurve.getPointAt(channelAirProgress[i]);
           posAttr.setXYZ(i, pt.x, pt.y, pt.z);
         }
         posAttr.needsUpdate = true;
       } else {
-        fluidParticleMat.opacity = 0.25;
-        pipeMat.emissiveIntensity = 0.2;
+        channelAirParticleMat.opacity = 0.25;
+        airChannelMat.emissiveIntensity = 0.2;
       }
 
       // 5. Thermal Heat Busbars (Radiant gold/amber pulsing under electrical load)
@@ -697,7 +702,7 @@ const ThermalSchematic3D = memo(function ThermalSchematic3D({
       packHeatLight.color.setHex(heatColorHex);
       packHeatLight.intensity = 1.6 + heatFluxIntensity * 1.8;
 
-      pumpMat.emissive.setHex(pump ? 0x10b981 : 0x047857);
+      airBoosterMat.emissive.setHex(isBoosterActive ? 0x10b981 : 0x047857);
 
       // 6. Smooth Per-Cell Thermal Gradient & Pack Matrix Calculation
       let maxT = -Infinity;
@@ -712,11 +717,11 @@ const ThermalSchematic3D = memo(function ThermalSchematic3D({
         // Convective ram-air cooling (front modules cool more when flaps open & speed up)
         const frontAirFactor = ((3.0 - col) / 3.0) * (flap_deg / 90.0) * (speed_kmh / 120.0) * 3.5;
 
-        // Liquid cooling factor (cells near coolant inlet chill faster when pump is active)
-        const liquidFactor = pump ? ((pwm_pct / 100.0) * (2.8 - (row + col) * 0.35)) : 0.0;
+        // Active forced-air booster cooling factor (cells near channel inlet cool faster when active)
+        const airBoostFactor = isBoosterActive ? ((pwm_pct / 100.0) * (2.8 - (row + col) * 0.35)) : 0.0;
 
         // Localized module temperature
-        const cellTemp = Math.max(-10, temp_filt + coreOffset - frontAirFactor - liquidFactor);
+        const cellTemp = Math.max(-10, temp_filt + coreOffset - frontAirFactor - airBoostFactor);
 
         if (cellTemp > maxT) {
           maxT = cellTemp;

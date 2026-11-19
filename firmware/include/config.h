@@ -33,19 +33,22 @@ constexpr int PIN_SPEED_INPUT    = 35;
 /**
  * @brief Actuator Outputs
  * GPIO 18 = Aerodynamic Venturi Flap Servo / Stepper PWM (LEDC CH 0, 50Hz)
- * GPIO 19 = High-Voltage Coolant Fluid Circulation Pump Relay / MOSFET (Active HIGH)
- * GPIO 21 = Peltier / Radiator Chiller High-Frequency PWM (LEDC CH 1, 5kHz)
+ * GPIO 19 = Active Air Booster Blower Unit Relay / MOSFET (Active HIGH)
+ * GPIO 21 = Active Thermal Air Channel High-Frequency PWM (LEDC CH 1, 5kHz)
  * GPIO 2  = On-board Heartbeat Diagnostic LED
  */
 constexpr int PIN_FLAP_SERVO     = 18;
-constexpr int PIN_PUMP_RELAY     = 19;
-constexpr int PIN_CHILLER_PWM    = 21;
+constexpr int PIN_BOOSTER_RELAY  = 19;
+constexpr int PIN_BOOSTER_PWM    = 21;
+constexpr int PIN_PUMP_RELAY     = PIN_BOOSTER_RELAY; // Backward-compatible alias
+constexpr int PIN_CHILLER_PWM    = PIN_BOOSTER_PWM;   // Backward-compatible alias
 constexpr int PIN_HEARTBEAT_LED  = 2;
 
 // =============================================================================
 // 2. PWM & ACTUATOR TIMING SPECIFICATIONS
 // =============================================================================
-constexpr uint32_t PWM_CHILLER_FREQ_HZ = 5000;   ///< 5kHz prevents acoustic motor resonance
+constexpr uint32_t PWM_BOOSTER_FREQ_HZ = 5000;   ///< 5kHz prevents acoustic motor resonance
+constexpr uint32_t PWM_CHILLER_FREQ_HZ = PWM_BOOSTER_FREQ_HZ; // Backward-compatible alias
 constexpr uint8_t  PWM_RESOLUTION_BITS = 10;     ///< 10-bit resolution (0 - 1023 duty cycle)
 constexpr uint32_t PWM_MAX_DUTY_RAW    = 1023;
 constexpr uint32_t PWM_SERVO_FREQ_HZ   = 50;     ///< 50Hz standard RC servo frequency
@@ -54,7 +57,7 @@ constexpr uint32_t PWM_SERVO_FREQ_HZ   = 50;     ///< 50Hz standard RC servo fre
 // 3. THERMAL MANAGEMENT OPERATING THRESHOLDS
 // =============================================================================
 constexpr float THERMAL_T1            = 40.0f;  ///< IDLE to PASSIVE_AERO boundary (°C)
-constexpr float THERMAL_T2            = 65.0f;  ///< PASSIVE_AERO to ACTIVE_FLUID boundary (°C)
+constexpr float THERMAL_T2            = 65.0f;  ///< PASSIVE_AERO to ACTIVE_AIR_BOOST boundary (°C)
 constexpr float THERMAL_T_CRIT        = 110.0f; ///< Hardware emergency shutdown cutoff (°C)
 constexpr float THERMAL_HYSTERESIS    = 1.5f;   ///< Anti-chatter state transition hysteresis (°C)
 constexpr float DEFAULT_SETPOINT      = 75.0f;  ///< Target battery pack operating temp (°C)

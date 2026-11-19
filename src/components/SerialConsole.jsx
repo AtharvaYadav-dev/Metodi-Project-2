@@ -131,7 +131,7 @@ export default function SerialConsole({ logs = [], onSendCommand, isHardwareMode
           logs.map((log, idx) => {
             const raw = typeof log === 'string' ? log : JSON.stringify(log);
             const isFault = raw.includes('"fault":"ERR') || raw.includes('"fault": "ERR');
-            const isState2 = raw.includes('ACTIVE_FLUID_LOOP');
+            const isState2 = raw.includes('ACTIVE_AIR_BOOST') || raw.includes('ACTIVE_FLUID_LOOP');
             const isState1 = raw.includes('PASSIVE_AERO_COOLING');
             return (
               <div

@@ -140,7 +140,7 @@ static void emitTelemetry(unsigned long currentMs) {
     ThermalSystemSnapshot snap = g_thermalSystem.getSnapshot(currentMs);
 
     // Exact production JSON packet specified in AeroTherm engineering spec:
-    // {"ts":12400,"state":"ACTIVE_FLUID_LOOP","temp_raw":68.42,"temp_filt":68.15,"setpoint":75.0,"speed_kmh":85,"flap_deg":64,"pump":true,"pwm_pct":42.5,"pid":{"p":12.4,"i":25.1,"d":5.0},"fault":null}
+    // {"ts":12400,"state":"ACTIVE_AIR_BOOST","temp_raw":68.42,"temp_filt":68.15,"setpoint":75.0,"speed_kmh":85,"flap_deg":64,"boost_active":true,"pwm_pct":42.5,"pid":{"p":12.4,"i":25.1,"d":5.0},"fault":null}
     Serial.print(F("{\"ts\":"));
     Serial.print(snap.timestamp_ms);
     Serial.print(F(",\"state\":\""));
@@ -155,6 +155,8 @@ static void emitTelemetry(unsigned long currentMs) {
     Serial.print(static_cast<int>(snap.vehicle_speed_kmh));
     Serial.print(F(",\"flap_deg\":"));
     Serial.print(static_cast<int>(snap.flap_angle_deg));
+    Serial.print(F(",\"boost_active\":"));
+    Serial.print(snap.boost_active ? F("true") : F("false"));
     Serial.print(F(",\"pump\":"));
     Serial.print(snap.pump_active ? F("true") : F("false"));
     Serial.print(F(",\"pwm_pct\":"));
@@ -228,7 +230,7 @@ void loop() {
 
     // 4. Optical Heartbeat Indicator (Flashing frequency signals health)
     unsigned long blinkInterval = 500; // Default 1Hz toggle in IDLE
-    if (g_thermalSystem.getState() == STATE_ACTIVE_FLUID_LOOP) {
+    if (g_thermalSystem.getState() == STATE_ACTIVE_AIR_BOOST) {
         blinkInterval = 200; // 2.5Hz in active cooling
     } else if (g_thermalSystem.getState() == STATE_SYSTEM_FAULT) {
         blinkInterval = 80;  // Rapid 6.25Hz strobe in emergency fault

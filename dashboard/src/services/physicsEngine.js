@@ -4,13 +4,13 @@
  * @details Implements exact numerical mirror of the C++ firmware:
  *          - O(1) Circular Buffer Filter (N=16)
  *          - Discrete PID Controller with Derivative-on-Measurement & Anti-Windup
- *          - Deterministic State Machine (IDLE, PASSIVE_AERO, ACTIVE_FLUID, SYSTEM_FAULT)
+ *          - Deterministic State Machine (IDLE, PASSIVE_AERO, ACTIVE_AIR_BOOST, SYSTEM_FAULT)
  *          - First-principles Thermal Dynamics Model for EV Battery Pack
  */
 
 export const THERMAL_THRESHOLDS = {
   T1: 40.0,       // °C (IDLE to PASSIVE AERO boundary)
-  T2: 65.0,       // °C (PASSIVE AERO to ACTIVE FLUID boundary)
+  T2: 65.0,       // °C (PASSIVE AERO to ACTIVE AIR BOOST boundary)
   T_CRIT: 110.0,  // °C (Emergency shutdown boundary)
   HYSTERESIS: 1.5,// °C
   SETPOINT: 75.0, // °C
@@ -21,7 +21,8 @@ export const THERMAL_THRESHOLDS = {
 export const SYSTEM_STATES = {
   IDLE_MODE: 'IDLE_MODE',
   PASSIVE_AERO_COOLING: 'PASSIVE_AERO_COOLING',
-  ACTIVE_FLUID_LOOP: 'ACTIVE_FLUID_LOOP',
+  ACTIVE_AIR_BOOST: 'ACTIVE_AIR_BOOST',
+  ACTIVE_FLUID_LOOP: 'ACTIVE_AIR_BOOST', // legacy alias for backward compatibility
   SYSTEM_FAULT: 'SYSTEM_FAULT'
 };
 
@@ -180,12 +181,14 @@ export class HilSimulator {
 
     // Internal Thermal Physics States
     this.trueCoreTemp = 32.0;    // Actual internal battery temperature (°C)
-    this.coolantTemp = 30.0;     // Fluid loop temperature (°C)
+    this.channelAirTemp = 28.0;  // Battery-pack integrated channel airflow temperature (°C)
+    this.coolantTemp = 28.0;     // Legacy alias
 
     // Actuator & State Machine States
     this.state = SYSTEM_STATES.IDLE_MODE;
     this.flapAngleDeg = 0.0;
-    this.pumpActive = false;
+    this.boostActive = false;
+    this.pumpActive = false; // Legacy alias
     this.pwmDutyPct = 0.0;
     this.auxPowerSavedKw = 0.0;
     this.cumulativeKwhSaved = 0.0;
@@ -249,15 +252,18 @@ export class HilSimulator {
     if (cur < THERMAL_THRESHOLDS.T1) {
       this.state = SYSTEM_STATES.IDLE_MODE;
       this.flapAngleDeg = 0.0;
+      this.boostActive = false;
       this.pumpActive = false;
       this.pwmDutyPct = 0.0;
     } else if (cur < THERMAL_THRESHOLDS.T2) {
       this.state = SYSTEM_STATES.PASSIVE_AERO_COOLING;
+      this.boostActive = false;
       this.pumpActive = false;
       this.pwmDutyPct = 0.0;
       this.flapAngleDeg = Math.min(90.0, Math.max(0.0, ((cur - THERMAL_THRESHOLDS.T1) / 25.0) * 90.0));
     } else {
-      this.state = SYSTEM_STATES.ACTIVE_FLUID_LOOP;
+      this.state = SYSTEM_STATES.ACTIVE_AIR_BOOST;
+      this.boostActive = true;
       this.pumpActive = true;
       this.pwmDutyPct = Math.min(100.0, Math.max(0.0, (cur - this.setpoint) * 5.0 + 35.0));
     }
@@ -289,12 +295,12 @@ export class HilSimulator {
     const aeroRamFlowFactor = (this.vehicleSpeedKmh / 100.0) * Math.sin(flapRad);
     const aeroCoolingKw = Math.max(0, 0.09 * aeroRamFlowFactor * deltaAmb);
 
-    // Active Fluid Loop & Chiller dissipation
+    // Active Air Channel Booster dissipation
     let activeCoolingKw = 0.0;
-    if (this.pumpActive) {
-      const chillerMaxKw = 5.2; // 5.2 kW heat absorption capacity
-      const pumpCoolingBase = 0.8; // Coolant convective loop
-      activeCoolingKw = pumpCoolingBase + (this.pwmDutyPct / 100.0) * chillerMaxKw;
+    if (this.boostActive) {
+      const activeBoosterMaxKw = 5.2; // High-CFM active pack-integrated channel airflow
+      const channelAirflowBase = 0.8; // Forced channel convection base
+      activeCoolingKw = channelAirflowBase + (this.pwmDutyPct / 100.0) * activeBoosterMaxKw;
     }
 
     // Dynamic Runaway condition
@@ -310,12 +316,13 @@ export class HilSimulator {
     this.trueCoreTemp += (netHeatRateKw / thermalMass) * dt;
     this.trueCoreTemp = Math.max(-15.0, Math.min(160.0, this.trueCoreTemp));
 
-    // Coolant fluid temperature responds with lag to core and ambient
-    if (this.pumpActive) {
-      this.coolantTemp += ((this.trueCoreTemp - 8.0 - (this.pwmDutyPct * 0.15)) - this.coolantTemp) * (dt * 0.8);
+    // Battery-pack integrated channel air temperature responds with thermal lag to core and ambient
+    if (this.boostActive) {
+      this.channelAirTemp += ((this.trueCoreTemp - 8.0 - (this.pwmDutyPct * 0.15)) - this.channelAirTemp) * (dt * 0.8);
     } else {
-      this.coolantTemp += (this.ambientTemp - this.coolantTemp) * (dt * 0.2);
+      this.channelAirTemp += (this.ambientTemp - this.channelAirTemp) * (dt * 0.2);
     }
+    this.coolantTemp = this.channelAirTemp;
 
     // --- 2. SENSOR ADC & NOISE INJECTION ---
     let rawReading = this.trueCoreTemp;
@@ -353,6 +360,7 @@ export class HilSimulator {
     if (this.state === SYSTEM_STATES.SYSTEM_FAULT) {
       // Immediate Hardware Kill-Switch
       this.pwmDutyPct = 0.0;
+      this.boostActive = false;
       this.pumpActive = false;
       this.flapAngleDeg = 90.0; // Fail-safe full open cooling
       this.auxPowerSavedKw = 0.0;
@@ -368,11 +376,11 @@ export class HilSimulator {
           if (filteredTemp < (THERMAL_THRESHOLDS.T1 - THERMAL_THRESHOLDS.HYSTERESIS)) {
             this.state = SYSTEM_STATES.IDLE_MODE;
           } else if (filteredTemp >= THERMAL_THRESHOLDS.T2) {
-            this.state = SYSTEM_STATES.ACTIVE_FLUID_LOOP;
+            this.state = SYSTEM_STATES.ACTIVE_AIR_BOOST;
           }
           break;
 
-        case SYSTEM_STATES.ACTIVE_FLUID_LOOP:
+        case SYSTEM_STATES.ACTIVE_AIR_BOOST:
           if (filteredTemp < (THERMAL_THRESHOLDS.T2 - THERMAL_THRESHOLDS.HYSTERESIS)) {
             this.state = SYSTEM_STATES.PASSIVE_AERO_COOLING;
             this.pid.reset();
@@ -388,6 +396,7 @@ export class HilSimulator {
       switch (this.state) {
         case SYSTEM_STATES.IDLE_MODE:
           this.flapAngleDeg = 0.0;
+          this.boostActive = false;
           this.pumpActive = false;
           this.pwmDutyPct = 0.0;
           this.auxPowerSavedKw = 0.0;
@@ -395,7 +404,8 @@ export class HilSimulator {
           break;
 
         case SYSTEM_STATES.PASSIVE_AERO_COOLING: {
-          this.pumpActive = false; // Zero pump draw!
+          this.boostActive = false; // Zero booster draw!
+          this.pumpActive = false;
           this.pwmDutyPct = 0.0;
 
           const deltaRatio = Math.max(0.0, Math.min(1.0, 
@@ -403,14 +413,15 @@ export class HilSimulator {
           ));
           this.flapAngleDeg = deltaRatio * 90.0;
 
-          // Saved auxiliary pump (0.65 kW) + refrigeration compressor (1.85 kW * delta)
+          // Saved auxiliary active booster power (0.65 kW base) + high-speed airflow compression (1.85 kW * delta)
           this.auxPowerSavedKw = 0.65 + (1.85 * deltaRatio);
           this.cumulativeKwhSaved += (this.auxPowerSavedKw * (dt / 3600.0));
           this.faultMessage = null;
           break;
         }
 
-        case SYSTEM_STATES.ACTIVE_FLUID_LOOP: {
+        case SYSTEM_STATES.ACTIVE_AIR_BOOST: {
+          this.boostActive = true;
           this.pumpActive = true;
           this.pwmDutyPct = this.pid.compute(filteredTemp, dt);
           this.flapAngleDeg = 45.0 + (45.0 * (this.pwmDutyPct / 100.0));
@@ -434,7 +445,8 @@ export class HilSimulator {
       setpoint: Number(this.setpoint.toFixed(1)),
       speed_kmh: Math.round(this.vehicleSpeedKmh),
       flap_deg: Math.round(this.flapAngleDeg),
-      pump: this.pumpActive,
+      boost_active: this.boostActive,
+      pump: this.boostActive, // backward-compatible alias
       pwm_pct: Number(this.pwmDutyPct.toFixed(1)),
       pid: {
         p: Number(this.pid.pTerm.toFixed(1)),
@@ -443,7 +455,8 @@ export class HilSimulator {
       },
       aux_kw: Number(this.auxPowerSavedKw.toFixed(2)),
       kwh_saved: Number(this.cumulativeKwhSaved.toFixed(4)),
-      coolant_temp: Number(this.coolantTemp.toFixed(1)),
+      channel_air_temp: Number(this.channelAirTemp.toFixed(1)),
+      coolant_temp: Number(this.channelAirTemp.toFixed(1)), // backward-compatible alias
       battery_load_kw: this.batteryLoadKw,
       ambient_temp: this.ambientTemp,
       fault: this.faultMessage

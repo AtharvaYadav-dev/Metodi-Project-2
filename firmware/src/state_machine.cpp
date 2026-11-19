@@ -15,6 +15,7 @@ ThermalStateMachine::ThermalStateMachine()
     : currentState_(STATE_IDLE_MODE),
       currentSpeedKmh_(0.0f),
       flapAngleDeg_(0.0f),
+      boostActive_(false),
       pumpActive_(false),
       pwmDutyPct_(0.0f),
       auxPowerSavedKw_(0.0f),
@@ -26,6 +27,7 @@ void ThermalStateMachine::init() {
     pid_.reset();
     currentState_ = STATE_IDLE_MODE;
     flapAngleDeg_ = 0.0f;
+    boostActive_ = false;
     pumpActive_ = false;
     pwmDutyPct_ = 0.0f;
     auxPowerSavedKw_ = 0.0f;
@@ -33,8 +35,8 @@ void ThermalStateMachine::init() {
     manualFaultInjected_ = false;
 
 #ifdef ARDUINO
-    pinMode(PIN_PUMP_RELAY, OUTPUT);
-    digitalWrite(PIN_PUMP_RELAY, LOW);
+    pinMode(PIN_BOOSTER_RELAY, OUTPUT);
+    digitalWrite(PIN_BOOSTER_RELAY, LOW);
 
     pinMode(PIN_HEARTBEAT_LED, OUTPUT);
     digitalWrite(PIN_HEARTBEAT_LED, LOW);
@@ -115,8 +117,8 @@ void ThermalStateMachine::update(float rawTemp, float vehicleSpeedKmh, float dt_
                 executePassiveAero(filteredTemp, vehicleSpeedKmh, dt_seconds);
                 break;
 
-            case STATE_ACTIVE_FLUID_LOOP:
-                executeActiveFluidLoop(filteredTemp, vehicleSpeedKmh, dt_seconds);
+            case STATE_ACTIVE_AIR_BOOST:
+                executeActiveAirBoost(filteredTemp, vehicleSpeedKmh, dt_seconds);
                 break;
 
             default:
@@ -125,7 +127,7 @@ void ThermalStateMachine::update(float rawTemp, float vehicleSpeedKmh, float dt_
     }
 
     // 4. Physical Hardware Output Actuation
-    applyHardwareActuation(flapAngleDeg_, pumpActive_, pwmDutyPct_);
+    applyHardwareActuation(flapAngleDeg_, boostActive_, pwmDutyPct_);
 }
 
 void ThermalStateMachine::executeIdleMode(float temp, float speed, float dt) {
@@ -134,7 +136,8 @@ void ThermalStateMachine::executeIdleMode(float temp, float speed, float dt) {
     (void)dt;
 
     flapAngleDeg_ = 0.0f;     // Flaps fully sealed for aerodynamic efficiency
-    pumpActive_ = false;      // Zero pump energy consumption
+    boostActive_ = false;     // Zero blower energy consumption
+    pumpActive_ = false;      // Backward-compatible alias
     pwmDutyPct_ = 0.0f;       // Zero thermal cooling PWM
     auxPowerSavedKw_ = 0.0f;  // Quiescent baseline
     faultMessage_ = nullptr;
@@ -143,8 +146,9 @@ void ThermalStateMachine::executeIdleMode(float temp, float speed, float dt) {
 void ThermalStateMachine::executePassiveAero(float temp, float speed, float dt) {
     (void)dt;
 
-    pumpActive_ = false;      // Crucial: Active pump remains OFF (zero aux power draw)
-    pwmDutyPct_ = 0.0f;       // No active refrigeration
+    boostActive_ = false;     // Crucial: Active booster remains OFF (zero aux power draw)
+    pumpActive_ = false;      // Backward-compatible alias
+    pwmDutyPct_ = 0.0f;       // No active forced-air draw
 
     // Dynamic Venturi Flap Modulation (0° - 90°)
     // Proportional to thermal delta between T1 (40°C) and T2 (65°C)
@@ -160,20 +164,21 @@ void ThermalStateMachine::executePassiveAero(float temp, float speed, float dt) 
     flapAngleDeg_ = deltaRatio * FLAP_MAX_ANGLE_DEG;
 
     // Auxiliary Power Saved (kW):
-    // Saved by eliminating 800V fluid pump (650W) and refrigeration compressor (1.8kW * deltaRatio)
+    // Saved by eliminating active air booster (650W) and refrigeration compressor (1.8kW * deltaRatio)
     auxPowerSavedKw_ = 0.65f + (1.85f * deltaRatio);
     faultMessage_ = nullptr;
 }
 
-void ThermalStateMachine::executeActiveFluidLoop(float temp, float speed, float dt) {
+void ThermalStateMachine::executeActiveAirBoost(float temp, float speed, float dt) {
     (void)speed;
 
-    pumpActive_ = true; // High-voltage fluid pump engaged
+    boostActive_ = true; // Active air channel booster engaged
+    pumpActive_ = true;  // Backward-compatible alias
 
     // Precision PID closed-loop control to lock temperature at target setpoint (75°C)
     pwmDutyPct_ = pid_.compute(temp, dt);
 
-    // Flaps open dynamically to feed the fluid radiator core
+    // Flaps open dynamically to feed the integrated cooling channel
     // Modulates between 45° and 90° based on active cooling demand
     flapAngleDeg_ = 45.0f + (45.0f * (pwmDutyPct_ / 100.0f));
 
@@ -185,15 +190,16 @@ void ThermalStateMachine::executeActiveFluidLoop(float temp, float speed, float 
 void ThermalStateMachine::executeSystemFault() {
     // Immediate Hardware Safety Kill-Switch:
     pwmDutyPct_ = 0.0f;                   // Cut all high-voltage PWM actuators immediately
-    pumpActive_ = false;                  // Cut active fluid pump
+    boostActive_ = false;                 // Cut active air booster
+    pumpActive_ = false;                  // Cut backward-compatible alias
     flapAngleDeg_ = FLAP_MAX_ANGLE_DEG;   // Force Venturi flaps to 90° fail-safe cooling position
     auxPowerSavedKw_ = 0.0f;
 }
 
-void ThermalStateMachine::applyHardwareActuation(float flapAngle, bool pumpState, float pwmDuty) {
+void ThermalStateMachine::applyHardwareActuation(float flapAngle, bool boosterState, float pwmDuty) {
 #ifdef ARDUINO
-    // Actuate Fluid Pump Relay
-    digitalWrite(PIN_PUMP_RELAY, pumpState ? HIGH : LOW);
+    // Actuate Active Air Booster Relay
+    digitalWrite(PIN_BOOSTER_RELAY, boosterState ? HIGH : LOW);
 
 #if defined(ESP32)
     // Servo Flap PWM (50Hz RC servo pulse width: 1ms (0°) to 2ms (90°))
@@ -202,18 +208,18 @@ void ThermalStateMachine::applyHardwareActuation(float flapAngle, bool pumpState
     uint32_t servoDuty = static_cast<uint32_t>((pulseMs / 20.0f) * PWM_MAX_DUTY_RAW);
     ledcWrite(0, servoDuty);
 
-    // Thermal Chiller / Fan PWM (5kHz, 0-1023)
-    uint32_t chillerDuty = static_cast<uint32_t>((pwmDuty / 100.0f) * PWM_MAX_DUTY_RAW);
-    ledcWrite(1, chillerDuty);
+    // Thermal Air Booster PWM (5kHz, 0-1023)
+    uint32_t boosterDuty = static_cast<uint32_t>((pwmDuty / 100.0f) * PWM_MAX_DUTY_RAW);
+    ledcWrite(1, boosterDuty);
 #elif defined(ARDUINO)
     // Generic Arduino analogWrite fallback
     analogWrite(PIN_FLAP_SERVO, static_cast<int>((flapAngle / 90.0f) * 255.0f));
-    analogWrite(PIN_CHILLER_PWM, static_cast<int>((pwmDuty / 100.0f) * 255.0f));
+    analogWrite(PIN_BOOSTER_PWM, static_cast<int>((pwmDuty / 100.0f) * 255.0f));
 #endif
 
 #else
     (void)flapAngle;
-    (void)pumpState;
+    (void)boosterState;
     (void)pwmDuty;
 #endif
 }
@@ -265,8 +271,8 @@ const char* ThermalStateMachine::getStateName() const {
             return "IDLE_MODE";
         case STATE_PASSIVE_AERO_COOLING:
             return "PASSIVE_AERO_COOLING";
-        case STATE_ACTIVE_FLUID_LOOP:
-            return "ACTIVE_FLUID_LOOP";
+        case STATE_ACTIVE_AIR_BOOST:
+            return "ACTIVE_AIR_BOOST";
         case STATE_SYSTEM_FAULT:
             return "SYSTEM_FAULT";
         default:
@@ -283,6 +289,7 @@ ThermalSystemSnapshot ThermalStateMachine::getSnapshot(uint32_t timestamp_ms) co
     snap.setpoint = pid_.getSetpoint();
     snap.vehicle_speed_kmh = currentSpeedKmh_;
     snap.flap_angle_deg = flapAngleDeg_;
+    snap.boost_active = boostActive_;
     snap.pump_active = pumpActive_;
     snap.pwm_duty_pct = pwmDutyPct_;
     snap.pid = pid_.getTerms();

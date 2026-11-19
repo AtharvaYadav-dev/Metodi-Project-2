@@ -20,28 +20,29 @@ const StateMachineViewer = memo(function StateMachineViewer({
       id: 'IDLE_MODE',
       label: 'S0: IDLE',
       tempRange: 'T < 40.0°C',
-      description: 'Flaps 0°, Pump OFF, PWM 0%. 1Hz heartbeat.',
+      description: 'Flaps 0°, Booster OFF, PWM 0%. 1Hz heartbeat.',
       color: 'blue'
     },
     {
       id: 'PASSIVE_AERO_COOLING',
       label: 'S1: PASSIVE AERO',
       tempRange: '40°C <= T < 65°C',
-      description: 'Flaps 0°-90° ram scoop. Pump OFF (0W Aux).',
+      description: 'Venturi flaps 0°-90° ram scoop. Booster OFF (0W Aux).',
       color: 'emerald'
     },
     {
-      id: 'ACTIVE_FLUID_LOOP',
-      label: 'S2: FLUID LOOP',
+      id: 'ACTIVE_AIR_BOOST',
+      aliases: ['ACTIVE_FLUID_LOOP'],
+      label: 'S2: ACTIVE AIR BOOST',
       tempRange: '65°C <= T < 110°C',
-      description: 'Pump ON (800V DC), PID PWM (Lock 75°C).',
+      description: 'Air Booster ON, PID PWM Channel Flow (Lock 75°C).',
       color: 'amber'
     },
     {
       id: 'SYSTEM_FAULT',
       label: 'S3: FAULT',
       tempRange: 'T >= 110°C / ERR',
-      description: 'Kill PWM 0%, Flaps 90° fail-safe.',
+      description: 'Kill PWM 0%, Flaps 90° fail-safe open.',
       color: 'red'
     }
   ];
@@ -68,7 +69,7 @@ const StateMachineViewer = memo(function StateMachineViewer({
       {/* State Cards Grid */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-1.5 mb-2 flex-shrink-0">
         {states.map((st) => {
-          const isActive = currentState === st.id;
+          const isActive = currentState === st.id || (st.aliases && st.aliases.includes(currentState));
           return (
             <div
               key={st.id}

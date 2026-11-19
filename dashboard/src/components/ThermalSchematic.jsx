@@ -5,9 +5,9 @@
  *          - Decoupled requestAnimationFrame loop (zero tear-down churn on React state updates)
  *          - Animated Venturi Flaps physically rotating 0° to 90°
  *          - Dynamic ram-air streamline particles reacting to vehicle speed and flap angle
- *          - Animated closed fluid loop with temperature-graded coolant lines and flow particles
+ *          - Animated underbody airflow tunnel & battery-pack integrated channel with streamline flow particles
  *          - 16-cell EV Battery Pack Heat Map with smooth thermal color interpolation
- *          - Rotating fluid pump impeller and spinning radiator fan blades
+ *          - Rotating active air booster blower turbine and radiator fan blades
  */
 
 import React, { useRef, useEffect, memo } from 'react';
@@ -25,7 +25,7 @@ const ThermalSchematic = memo(function ThermalSchematic({ telemetry, onToggle3DV
 
   // Particle memory across animation frames
   const airParticlesRef = useRef([]);
-  const fluidParticlesRef = useRef([]);
+  const channelAirParticlesRef = useRef([]);
   const rotationAngleRef = useRef(0);
 
   // Initialize particles once on mount
@@ -43,13 +43,13 @@ const ThermalSchematic = memo(function ThermalSchematic({ telemetry, onToggle3DV
     }
     airParticlesRef.current = air;
 
-    const fluid = [];
+    const channelAir = [];
     for (let i = 0; i < 32; i++) {
-      fluid.push({
+      channelAir.push({
         distance: i / 32.0 // normalized position along loop [0, 1]
       });
     }
-    fluidParticlesRef.current = fluid;
+    channelAirParticlesRef.current = channelAir;
   }, []);
 
   // Continuous 60fps render loop decoupled from React state updates
@@ -73,12 +73,15 @@ const ThermalSchematic = memo(function ThermalSchematic({ telemetry, onToggle3DV
         temp_raw = 25.0,
         speed_kmh = 0,
         flap_deg = 0,
+        boost_active,
         pump = false,
         pwm_pct = 0,
         state = 'IDLE_MODE',
         aux_kw = 0.0,
         fault = null
       } = telemetryRef.current || {};
+
+      const isBoosterActive = Boolean(boost_active !== undefined ? boost_active : pump);
 
       // Clear Canvas
       ctx.fillStyle = '#080A10';
@@ -101,8 +104,8 @@ const ThermalSchematic = memo(function ThermalSchematic({ telemetry, onToggle3DV
         ctx.stroke();
       }
 
-      // Update rotation angle for pump & fans
-      if (pump) {
+      // Update rotation angle for booster & fans
+      if (isBoosterActive) {
         rotationAngleRef.current += dt * (3.5 + (pwm_pct / 100.0) * 7.5);
       }
 
@@ -275,7 +278,7 @@ const ThermalSchematic = memo(function ThermalSchematic({ telemetry, onToggle3DV
       ctx.restore();
 
       // =======================================================================
-      // 4. CLOSED FLUID COOLING PIPING CIRCUIT
+      // 4. UNDERBODY AIRFLOW TUNNEL & PACK-INTEGRATED CHANNEL DUCTING
       // =======================================================================
       const pipeSupplyColor = '#00F5D4';
       const pipeReturnColor = getTempColor(temp_filt);
@@ -285,8 +288,8 @@ const ThermalSchematic = memo(function ThermalSchematic({ telemetry, onToggle3DV
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
 
-      // (A) Supply Line
-      ctx.strokeStyle = pump ? 'rgba(0, 245, 212, 0.7)' : 'rgba(0, 245, 212, 0.25)';
+      // (A) Intake / Forced Supply Channel
+      ctx.strokeStyle = isBoosterActive ? 'rgba(0, 245, 212, 0.7)' : 'rgba(0, 245, 212, 0.25)';
       ctx.beginPath();
       ctx.moveTo(radX + radW + 28, radY + 105);
       ctx.lineTo(430, radY + 105);
@@ -301,8 +304,8 @@ const ThermalSchematic = memo(function ThermalSchematic({ telemetry, onToggle3DV
       ctx.lineTo(680, 265);
       ctx.stroke();
 
-      // (B) Return Line
-      ctx.strokeStyle = pump ? pipeReturnColor : 'rgba(100, 116, 139, 0.25)';
+      // (B) Exhaust Air Path
+      ctx.strokeStyle = isBoosterActive ? pipeReturnColor : 'rgba(100, 116, 139, 0.25)';
       ctx.beginPath();
       ctx.moveTo(920, 125);
       ctx.lineTo(940, 125);
@@ -312,18 +315,18 @@ const ThermalSchematic = memo(function ThermalSchematic({ telemetry, onToggle3DV
       ctx.stroke();
 
       ctx.lineWidth = 2.5;
-      ctx.strokeStyle = pump ? '#FFFFFF' : 'rgba(255, 255, 255, 0.15)';
+      ctx.strokeStyle = isBoosterActive ? '#FFFFFF' : 'rgba(255, 255, 255, 0.15)';
       ctx.stroke();
       ctx.restore();
 
       // =======================================================================
-      // 5. FLUID PARTICLES
+      // 5. PACK CHANNEL AIRFLOW PARTICLES
       // =======================================================================
-      if (pump) {
+      if (isBoosterActive) {
         ctx.save();
         const flowSpeed = (0.07 + (pwm_pct / 100.0) * 0.16) * dt;
 
-        fluidParticlesRef.current.forEach((fp) => {
+        channelAirParticlesRef.current.forEach((fp) => {
           fp.distance = (fp.distance + flowSpeed) % 1.0;
           const pos = getLoopCoordinates(fp.distance, radX, radY);
 
@@ -336,44 +339,44 @@ const ThermalSchematic = memo(function ThermalSchematic({ telemetry, onToggle3DV
       }
 
       // =======================================================================
-      // 6. 800V ACTIVE FLUID CIRCULATION PUMP
+      // 6. HIGH-PERFORMANCE ACTIVE AIR BOOSTER / BLOWER UNIT
       // =======================================================================
-      const pumpX = 550;
-      const pumpY = 290;
-      const pumpRadius = 23;
+      const boosterX = 550;
+      const boosterY = 290;
+      const boosterRadius = 23;
 
       ctx.save();
-      ctx.fillStyle = pump ? '#064E3B' : '#1E293B';
-      ctx.strokeStyle = pump ? '#10B981' : '#475569';
+      ctx.fillStyle = isBoosterActive ? '#064E3B' : '#1E293B';
+      ctx.strokeStyle = isBoosterActive ? '#10B981' : '#475569';
       ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.arc(pumpX, pumpY, pumpRadius, 0, Math.PI * 2);
+      ctx.arc(boosterX, boosterY, boosterRadius, 0, Math.PI * 2);
       ctx.fill();
       ctx.stroke();
 
-      // Rotating Impeller
+      // Rotating Turbine / Blower Rotor
       ctx.save();
-      ctx.translate(pumpX, pumpY);
-      if (pump) ctx.rotate(rotationAngleRef.current * 3.0);
-      ctx.strokeStyle = pump ? '#34D399' : '#64748B';
+      ctx.translate(boosterX, boosterY);
+      if (isBoosterActive) ctx.rotate(rotationAngleRef.current * 3.0);
+      ctx.strokeStyle = isBoosterActive ? '#34D399' : '#64748B';
       ctx.lineWidth = 2.5;
       for (let i = 0; i < 6; i++) {
         ctx.beginPath();
         ctx.moveTo(0, 0);
-        ctx.lineTo(Math.cos(i * Math.PI / 3) * (pumpRadius - 3), Math.sin(i * Math.PI / 3) * (pumpRadius - 3));
+        ctx.lineTo(Math.cos(i * Math.PI / 3) * (boosterRadius - 3), Math.sin(i * Math.PI / 3) * (boosterRadius - 3));
         ctx.stroke();
       }
       ctx.restore();
 
       ctx.fillStyle = '#E2E8F0';
       ctx.beginPath();
-      ctx.arc(pumpX, pumpY, 4, 0, Math.PI * 2);
+      ctx.arc(boosterX, boosterY, 4, 0, Math.PI * 2);
       ctx.fill();
 
-      ctx.fillStyle = pump ? '#34D399' : '#94A3B8';
+      ctx.fillStyle = isBoosterActive ? '#34D399' : '#94A3B8';
       ctx.font = '9.5px JetBrains Mono, monospace';
       ctx.textAlign = 'center';
-      ctx.fillText(pump ? 'PUMP ACTIVE (800V)' : 'PUMP OFF (0W)', pumpX, pumpY + pumpRadius + 14);
+      ctx.fillText(isBoosterActive ? 'AIR BOOSTER ACTIVE' : 'AIR BOOSTER OFF (0W)', boosterX, boosterY + boosterRadius + 14);
       ctx.restore();
 
       // =======================================================================
@@ -386,14 +389,14 @@ const ThermalSchematic = memo(function ThermalSchematic({ telemetry, onToggle3DV
 
       ctx.save();
       ctx.fillStyle = '#0D111E';
-      ctx.strokeStyle = fault ? '#EF4444' : (state === 'ACTIVE_FLUID_LOOP' ? '#06B6D4' : '#334155');
+      ctx.strokeStyle = fault ? '#EF4444' : (state === 'ACTIVE_AIR_BOOST' || state === 'ACTIVE_FLUID_LOOP' ? '#06B6D4' : '#334155');
       ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.roundRect(packX, packY, packW, packH, 6);
       ctx.fill();
       ctx.stroke();
 
-      // Cold plate base
+      // Underbody thermal channel & heatsink base
       ctx.fillStyle = '#1E293B';
       ctx.fillRect(packX + 8, packY + packH - 10, packW - 16, 7);
 
@@ -417,8 +420,8 @@ const ThermalSchematic = memo(function ThermalSchematic({ telemetry, onToggle3DV
           const coreDist = Math.abs(c - 1.5) + Math.abs(r - 1.5);
           const coreOffset = (2.2 - coreDist * 0.85);
           const frontAir = ((3.0 - c) / 3.0) * (flap_deg / 90.0) * (speed_kmh / 120.0) * 3.2;
-          const liquidChill = pump ? ((pwm_pct / 100.0) * (2.8 - (r + c) * 0.35)) : 0.0;
-          const cellTemp = Math.max(-10, temp_filt + coreOffset - frontAir - liquidChill);
+          const airBoostChill = isBoosterActive ? ((pwm_pct / 100.0) * (2.8 - (r + c) * 0.35)) : 0.0;
+          const cellTemp = Math.max(-10, temp_filt + coreOffset - frontAir - airBoostChill);
 
           if (cellTemp > maxT) {
             maxT = cellTemp;
@@ -508,8 +511,8 @@ const ThermalSchematic = memo(function ThermalSchematic({ telemetry, onToggle3DV
         <div className="flex items-center gap-2 text-gray-400 font-mono text-[10px] flex-shrink-0">
           <span className="hidden sm:inline">RAM: <strong className="text-cyan-300">{(telemetry?.speed_kmh || 0).toFixed(0)} km/h</strong></span>
           <span className="hidden md:inline">FLAP: <strong className="text-cyan-300">{telemetry?.flap_deg || 0}°</strong></span>
-          <span>PUMP: <strong className={telemetry?.pump ? 'text-emerald-400' : 'text-gray-500'}>
-            {telemetry?.pump ? 'ACTIVE' : 'STANDBY'}
+          <span>BOOSTER: <strong className={(telemetry?.boost_active ?? telemetry?.pump) ? 'text-emerald-400' : 'text-gray-500'}>
+            {(telemetry?.boost_active ?? telemetry?.pump) ? 'ACTIVE' : 'STANDBY'}
           </strong></span>
           {onToggle3DView && (
             <button
@@ -542,7 +545,7 @@ const ThermalSchematic = memo(function ThermalSchematic({ telemetry, onToggle3DV
           </div>
           <div className="flex items-center gap-1.5">
             <span className="h-2 w-2 rounded-full bg-emerald-400 inline-block" />
-            <span>800V Fluid Pump</span>
+            <span>Active Air Booster</span>
           </div>
           <div className="flex items-center gap-1.5">
             <span className="h-2 w-2 rounded-full bg-amber-400 inline-block" />
@@ -550,7 +553,7 @@ const ThermalSchematic = memo(function ThermalSchematic({ telemetry, onToggle3DV
           </div>
           <div className="flex items-center gap-1.5">
             <span className="h-2 w-2 rounded-full bg-purple-400 inline-block" />
-            <span>PID Chiller (0-100%)</span>
+            <span>PWM Channel Actuator (0-100%)</span>
           </div>
         </div>
 

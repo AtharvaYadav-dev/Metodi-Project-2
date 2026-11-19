@@ -14,9 +14,10 @@
  * @brief Core System Operational States (Phase 2 Specification)
  */
 enum SystemState : uint8_t {
-    STATE_IDLE_MODE = 0,           ///< Temp < T1 (40°C): Flaps closed (0°), Pump OFF, PWM 0%
-    STATE_PASSIVE_AERO_COOLING = 1,///< T1 <= Temp < T2: Flaps 0°-90° based on speed & delta, Pump OFF
-    STATE_ACTIVE_FLUID_LOOP = 2,   ///< T2 <= Temp < T_CRIT: Pump ON, Flaps modulated, PID PWM 0-100%
+    STATE_IDLE_MODE = 0,           ///< Temp < T1 (40°C): Flaps closed (0°), Booster OFF, PWM 0%
+    STATE_PASSIVE_AERO_COOLING = 1,///< T1 <= Temp < T2: Flaps 0°-90° based on speed & delta, Booster OFF
+    STATE_ACTIVE_AIR_BOOST = 2,    ///< T2 <= Temp < T_CRIT: Air Booster ON, Flaps modulated, PID PWM 0-100%
+    STATE_ACTIVE_FLUID_LOOP = STATE_ACTIVE_AIR_BOOST, ///< Backward-compatible alias
     STATE_SYSTEM_FAULT = 3         ///< Temp >= T_CRIT or sensor fault: Kill PWM to 0%, Flaps 90° fail-safe
 };
 
@@ -31,7 +32,8 @@ struct ThermalSystemSnapshot {
     float setpoint;
     float vehicle_speed_kmh;
     float flap_angle_deg;
-    bool pump_active;
+    bool boost_active;
+    bool pump_active; // Backward-compatible alias
     float pwm_duty_pct;
     PidTerms pid;
     const char* fault_message;
@@ -90,10 +92,11 @@ public:
 private:
     void executeIdleMode(float temp, float speed, float dt);
     void executePassiveAero(float temp, float speed, float dt);
-    void executeActiveFluidLoop(float temp, float speed, float dt);
+    void executeActiveAirBoost(float temp, float speed, float dt);
+    void executeActiveFluidLoop(float temp, float speed, float dt) { executeActiveAirBoost(temp, speed, dt); }
     void executeSystemFault();
 
-    void applyHardwareActuation(float flapAngle, bool pumpState, float pwmDuty);
+    void applyHardwareActuation(float flapAngle, bool boosterState, float pwmDuty);
 
     SystemState currentState_;
     SensorFilter filter_;
@@ -101,6 +104,7 @@ private:
 
     float currentSpeedKmh_;
     float flapAngleDeg_;
+    bool boostActive_;
     bool pumpActive_;
     float pwmDutyPct_;
     float auxPowerSavedKw_;
