@@ -34,6 +34,7 @@ import {
   Terminal,
   Edit2,
   Fan,
+  Wind,
   Droplets,
   Flame,
   Settings
@@ -126,21 +127,28 @@ Confidentiality Status: ${ndaStatus === 'EXECUTED' ? 'Mutual NDA Executed & Auth
     setTimeout(() => setCopied(false), 2500);
   };
 
-  const {
-    state = 'IDLE_MODE',
-    temp_filt = 25.0,
-    temp_raw = 25.0,
-    speed_kmh = 85,
-    flap_deg = 0,
-    boost_active,
-    pump = false,
-    pwm_pct = 0.0,
-    aux_kw = 0.0,
-    kwh_saved = 0.0,
-    fault = null
-  } = telemetry || {};
+  const [copiedCmd, setCopiedCmd] = useState(null);
 
-  const isBoosterActive = Boolean(boost_active !== undefined ? boost_active : pump);
+  const handleCopyCommand = (cmdText) => {
+    navigator.clipboard.writeText(cmdText);
+    setCopiedCmd(cmdText);
+    setTimeout(() => setCopiedCmd(null), 2000);
+  };
+
+  const safeTempFilt = Number(telemetry?.temp_filt ?? 25.0);
+  const safeTempRaw = Number(telemetry?.temp_raw ?? 25.0);
+  const safeSetpoint = Number(setpoint ?? 75.0);
+  const safeSpeed = Number(telemetry?.speed_kmh ?? 85);
+  const safeFlap = Number(telemetry?.flap_deg ?? 0);
+  const safePwm = Number(telemetry?.pwm_pct ?? 0.0);
+  const safeAuxKw = Number(telemetry?.aux_kw ?? 0.0);
+  const safeKwh = Number(telemetry?.kwh_saved ?? 0.0);
+  const isBoosterActive = Boolean(telemetry?.boost_active !== undefined ? telemetry.boost_active : telemetry?.pump);
+  const state = telemetry?.state || 'IDLE_MODE';
+  const fault = telemetry?.fault || null;
+  const safeKp = Number(pidGains?.kp ?? 2.5);
+  const safeKi = Number(pidGains?.ki ?? 0.4);
+  const safeKd = Number(pidGains?.kd ?? 0.8);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/85 backdrop-blur-md animate-fadeIn">
@@ -403,30 +411,30 @@ Confidentiality Status: ${ndaStatus === 'EXECUTED' ? 'Mutual NDA Executed & Auth
                     <span className="text-gray-400 flex items-center gap-1">
                       <Flame className="h-3 w-3 text-cyan-400" /> FILTERED CORE TEMP
                     </span>
-                    <div className="text-cyan-300 font-bold text-sm mt-0.5">{temp_filt.toFixed(1)}°C</div>
-                    <span className="text-gray-500 text-[8.5px]">Raw ADC: {temp_raw.toFixed(1)}°C</span>
+                    <div className="text-cyan-300 font-bold text-sm mt-0.5">{safeTempFilt.toFixed(1)}°C</div>
+                    <span className="text-gray-500 text-[8.5px]">Raw ADC: {safeTempRaw.toFixed(1)}°C</span>
                   </div>
                   <div className="p-2 rounded bg-black/50 border border-gray-800">
                     <span className="text-gray-400 flex items-center gap-1">
                       <Sliders className="h-3 w-3 text-amber-400" /> TARGET SETPOINT
                     </span>
-                    <div className="text-amber-300 font-bold text-sm mt-0.5">{setpoint.toFixed(0)}°C</div>
-                    <span className={temp_filt > setpoint ? 'text-amber-400 text-[8.5px]' : 'text-emerald-400 text-[8.5px]'}>
-                      Δ: {(temp_filt - setpoint).toFixed(1)}°C
+                    <div className="text-amber-300 font-bold text-sm mt-0.5">{safeSetpoint.toFixed(0)}°C</div>
+                    <span className={safeTempFilt > safeSetpoint ? 'text-amber-400 text-[8.5px]' : 'text-emerald-400 text-[8.5px]'}>
+                      Δ: {(safeTempFilt - safeSetpoint).toFixed(1)}°C
                     </span>
                   </div>
                   <div className="p-2 rounded bg-black/50 border border-gray-800">
                     <span className="text-gray-400 flex items-center gap-1">
                       <Fan className="h-3 w-3 text-cyan-400" /> VENTURI FLAPS
                     </span>
-                    <div className="text-cyan-300 font-bold text-sm mt-0.5">{flap_deg}°</div>
-                    <span className="text-gray-500 text-[8.5px]">Aero Scoop: {flap_deg > 0 ? 'DEPLOYED' : 'SEALED'}</span>
+                    <div className="text-cyan-300 font-bold text-sm mt-0.5">{safeFlap}°</div>
+                    <span className="text-gray-500 text-[8.5px]">Aero Scoop: {safeFlap > 0 ? 'DEPLOYED' : 'SEALED'}</span>
                   </div>
                   <div className="p-2 rounded bg-black/50 border border-gray-800">
                     <span className="text-gray-400 flex items-center gap-1">
                       <Wind className="h-3 w-3 text-purple-400" /> AIR BOOSTER / PWM
                     </span>
-                    <div className="text-purple-300 font-bold text-sm mt-0.5">{pwm_pct.toFixed(1)}%</div>
+                    <div className="text-purple-300 font-bold text-sm mt-0.5">{safePwm.toFixed(1)}%</div>
                     <span className="text-gray-500 text-[8.5px]">Booster: {isBoosterActive ? 'ACTIVE' : 'STANDBY 0W'}</span>
                   </div>
                 </div>
@@ -444,47 +452,47 @@ Confidentiality Status: ${ndaStatus === 'EXECUTED' ? 'Mutual NDA Executed & Auth
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-800/60 text-gray-300">
-                      <tr className={temp_filt < 40 ? 'bg-cyan-950/20' : ''}>
+                      <tr className={safeTempFilt < 40 ? 'bg-cyan-950/20' : ''}>
                         <td className="p-1.5 font-bold text-cyan-400">T1 (IDLE / PASSIVE AERO)</td>
                         <td className="p-1.5">40.0°C</td>
-                        <td className="p-1.5">{temp_filt.toFixed(1)}°C</td>
+                        <td className="p-1.5">{safeTempFilt.toFixed(1)}°C</td>
                         <td className="p-1.5">Flaps 0°, Booster 0W, PWM 0%</td>
                         <td className="p-1.5">
-                          <span className={`px-1 rounded ${temp_filt < 40 ? 'bg-cyan-900 text-cyan-200' : 'bg-gray-800 text-gray-400'}`}>
-                            {temp_filt < 40 ? 'ACTIVE (S0)' : 'PASSED'}
+                          <span className={`px-1 rounded ${safeTempFilt < 40 ? 'bg-cyan-900 text-cyan-200' : 'bg-gray-800 text-gray-400'}`}>
+                            {safeTempFilt < 40 ? 'ACTIVE (S0)' : 'PASSED'}
                           </span>
                         </td>
                       </tr>
-                      <tr className={temp_filt >= 40 && temp_filt < 65 ? 'bg-emerald-950/20' : ''}>
+                      <tr className={safeTempFilt >= 40 && safeTempFilt < 65 ? 'bg-emerald-950/20' : ''}>
                         <td className="p-1.5 font-bold text-emerald-400">T2 (AERO / ACTIVE AIR BOOST)</td>
                         <td className="p-1.5">65.0°C</td>
-                        <td className="p-1.5">{temp_filt.toFixed(1)}°C</td>
+                        <td className="p-1.5">{safeTempFilt.toFixed(1)}°C</td>
                         <td className="p-1.5">Flaps 0°–90° Ram Scoop, Booster 0W</td>
                         <td className="p-1.5">
-                          <span className={`px-1 rounded ${temp_filt >= 40 && temp_filt < 65 ? 'bg-emerald-900 text-emerald-200' : 'bg-gray-800 text-gray-400'}`}>
-                            {temp_filt >= 40 && temp_filt < 65 ? 'ACTIVE (S1)' : temp_filt >= 65 ? 'PASSED' : 'STANDBY'}
+                          <span className={`px-1 rounded ${safeTempFilt >= 40 && safeTempFilt < 65 ? 'bg-emerald-900 text-emerald-200' : 'bg-gray-800 text-gray-400'}`}>
+                            {safeTempFilt >= 40 && safeTempFilt < 65 ? 'ACTIVE (S1)' : safeTempFilt >= 65 ? 'PASSED' : 'STANDBY'}
                           </span>
                         </td>
                       </tr>
-                      <tr className={temp_filt >= 65 && temp_filt < 110 ? 'bg-amber-950/20' : ''}>
+                      <tr className={safeTempFilt >= 65 && safeTempFilt < 110 ? 'bg-amber-950/20' : ''}>
                         <td className="p-1.5 font-bold text-amber-400">REGULATION BAND</td>
                         <td className="p-1.5">65.0°C – 110.0°C</td>
-                        <td className="p-1.5">{temp_filt.toFixed(1)}°C</td>
+                        <td className="p-1.5">{safeTempFilt.toFixed(1)}°C</td>
                         <td className="p-1.5">Air Booster ON, PID PWM 0–100%</td>
                         <td className="p-1.5">
-                          <span className={`px-1 rounded ${temp_filt >= 65 && temp_filt < 110 ? 'bg-amber-900 text-amber-200' : 'bg-gray-800 text-gray-400'}`}>
-                            {temp_filt >= 65 && temp_filt < 110 ? 'ACTIVE (S2)' : temp_filt >= 110 ? 'EXCEEDED' : 'STANDBY'}
+                          <span className={`px-1 rounded ${safeTempFilt >= 65 && safeTempFilt < 110 ? 'bg-amber-900 text-amber-200' : 'bg-gray-800 text-gray-400'}`}>
+                            {safeTempFilt >= 65 && safeTempFilt < 110 ? 'ACTIVE (S2)' : safeTempFilt >= 110 ? 'EXCEEDED' : 'STANDBY'}
                           </span>
                         </td>
                       </tr>
-                      <tr className={temp_filt >= 110 || fault ? 'bg-red-950/30' : ''}>
+                      <tr className={safeTempFilt >= 110 || fault ? 'bg-red-950/30' : ''}>
                         <td className="p-1.5 font-bold text-red-400">T_CRIT (SAFETY INTERLOCK)</td>
                         <td className="p-1.5">≥ 110.0°C / ERR</td>
-                        <td className="p-1.5">{temp_filt.toFixed(1)}°C</td>
+                        <td className="p-1.5">{safeTempFilt.toFixed(1)}°C</td>
                         <td className="p-1.5">PWM 0%, Flaps 90° Fail-Safe Open</td>
                         <td className="p-1.5">
-                          <span className={`px-1 rounded ${temp_filt >= 110 || fault ? 'bg-red-900 text-red-200 font-bold animate-pulse' : 'bg-emerald-950 text-emerald-300'}`}>
-                            {temp_filt >= 110 || fault ? 'INTERLOCK CUTOFF' : 'CLEAR (SAFE)'}
+                          <span className={`px-1 rounded ${safeTempFilt >= 110 || fault ? 'bg-red-900 text-red-200 font-bold animate-pulse' : 'bg-emerald-950 text-emerald-300'}`}>
+                            {safeTempFilt >= 110 || fault ? 'INTERLOCK CUTOFF' : 'CLEAR (SAFE)'}
                           </span>
                         </td>
                       </tr>
@@ -552,15 +560,15 @@ Confidentiality Status: ${ndaStatus === 'EXECUTED' ? 'Mutual NDA Executed & Auth
                   <div className="grid grid-cols-3 gap-2 text-[10px]">
                     <div className="p-1.5 rounded bg-black/40 border border-gray-800">
                       <span className="text-gray-400">PROPORTIONAL (Kp)</span>
-                      <div className="text-purple-300 font-bold text-xs mt-0.5">{pidGains.kp.toFixed(2)}</div>
+                      <div className="text-purple-300 font-bold text-xs mt-0.5">{safeKp.toFixed(2)}</div>
                     </div>
                     <div className="p-1.5 rounded bg-black/40 border border-gray-800">
                       <span className="text-gray-400">INTEGRAL (Ki)</span>
-                      <div className="text-purple-300 font-bold text-xs mt-0.5">{pidGains.ki.toFixed(2)}</div>
+                      <div className="text-purple-300 font-bold text-xs mt-0.5">{safeKi.toFixed(2)}</div>
                     </div>
                     <div className="p-1.5 rounded bg-black/40 border border-gray-800">
                       <span className="text-gray-400">DERIVATIVE (Kd)</span>
-                      <div className="text-purple-300 font-bold text-xs mt-0.5">{pidGains.kd.toFixed(2)}</div>
+                      <div className="text-purple-300 font-bold text-xs mt-0.5">{safeKd.toFixed(2)}</div>
                     </div>
                   </div>
                   <div className="text-[10px] text-gray-400 space-y-1">
@@ -583,21 +591,44 @@ Confidentiality Status: ${ndaStatus === 'EXECUTED' ? 'Mutual NDA Executed & Auth
                 <div className="p-3 rounded-xl bg-[#0B0F19] border border-gray-800 space-y-1.5 text-[10px]">
                   <div className="text-gray-200 font-bold text-[10.5px] border-b border-gray-800 pb-1 flex items-center justify-between">
                     <span>4. OUTBOUND 10 Hz TELEMETRY SCHEMA</span>
-                    <span className="text-emerald-400">JSON STREAM</span>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={() => handleCopyCommand(JSON.stringify({
+                          ts: telemetry?.ts || 124500,
+                          state,
+                          temp_raw: safeTempRaw,
+                          temp_filt: safeTempFilt,
+                          setpoint: safeSetpoint,
+                          speed_kmh: safeSpeed,
+                          flap_deg: safeFlap,
+                          boost_active: isBoosterActive,
+                          pwm_pct: safePwm,
+                          aux_kw: safeAuxKw,
+                          kwh_saved: safeKwh,
+                          fault
+                        }, null, 2))}
+                        className="px-1.5 py-0.5 rounded bg-gray-800 hover:bg-gray-700 text-gray-300 text-[9px] font-mono flex items-center gap-1 transition-colors"
+                        title="Copy live JSON packet to clipboard"
+                      >
+                        {copiedCmd && copiedCmd.includes('"ts"') ? <Check className="h-2.5 w-2.5 text-emerald-400" /> : <Copy className="h-2.5 w-2.5" />}
+                        {copiedCmd && copiedCmd.includes('"ts"') ? 'COPIED' : 'COPY JSON'}
+                      </button>
+                      <span className="text-emerald-400">STREAM</span>
+                    </div>
                   </div>
                   <pre className="p-2 rounded bg-black/80 border border-gray-800/80 text-cyan-300 font-mono text-[9px] overflow-x-auto leading-relaxed">
 {`{
   "ts": ${(telemetry?.ts || 124500)},
   "state": "${state}",
-  "temp_raw": ${temp_raw.toFixed(2)},
-  "temp_filt": ${temp_filt.toFixed(2)},
-  "setpoint": ${setpoint.toFixed(1)},
-  "speed_kmh": ${speed_kmh},
-  "flap_deg": ${flap_deg},
+  "temp_raw": ${safeTempRaw.toFixed(2)},
+  "temp_filt": ${safeTempFilt.toFixed(2)},
+  "setpoint": ${safeSetpoint.toFixed(1)},
+  "speed_kmh": ${safeSpeed},
+  "flap_deg": ${safeFlap},
   "boost_active": ${isBoosterActive ? 'true' : 'false'},
-  "pwm_pct": ${pwm_pct.toFixed(1)},
-  "aux_kw": ${aux_kw.toFixed(2)},
-  "kwh_saved": ${kwh_saved.toFixed(4)},
+  "pwm_pct": ${safePwm.toFixed(1)},
+  "aux_kw": ${safeAuxKw.toFixed(2)},
+  "kwh_saved": ${safeKwh.toFixed(4)},
   "fault": ${fault ? `"${fault}"` : 'null'}
 }`}
                   </pre>
@@ -610,21 +641,56 @@ Confidentiality Status: ${ndaStatus === 'EXECUTED' ? 'Mutual NDA Executed & Auth
                     <span className="text-purple-400">115200 8-N-1</span>
                   </div>
                   <div className="space-y-1 text-[9px] font-mono">
-                    <div className="p-1.5 rounded bg-black/80 border border-gray-800 text-gray-300">
-                      <span className="text-purple-300 font-bold">PID Tuning:</span>
-                      <div className="text-gray-400">{`{"cmd": "SET_PID", "kp": 2.5, "ki": 0.4, "kd": 0.8}`}</div>
+                    <div className="p-1.5 rounded bg-black/80 border border-gray-800 text-gray-300 flex items-center justify-between gap-1">
+                      <div>
+                        <span className="text-purple-300 font-bold block">PID Tuning:</span>
+                        <div className="text-gray-400">{`{"cmd": "SET_PID", "kp": 2.5, "ki": 0.4, "kd": 0.8}`}</div>
+                      </div>
+                      <button
+                        onClick={() => handleCopyCommand('{"cmd": "SET_PID", "kp": 2.5, "ki": 0.4, "kd": 0.8}')}
+                        className="px-1.5 py-0.5 rounded bg-gray-800 hover:bg-gray-700 text-gray-300 text-[8.5px] font-mono transition-colors flex-shrink-0"
+                      >
+                        {copiedCmd === '{"cmd": "SET_PID", "kp": 2.5, "ki": 0.4, "kd": 0.8}' ? 'COPIED' : 'COPY'}
+                      </button>
                     </div>
-                    <div className="p-1.5 rounded bg-black/80 border border-gray-800 text-gray-300">
-                      <span className="text-cyan-300 font-bold">Target Setpoint:</span>
-                      <div className="text-gray-400">{`{"cmd": "SET_SETPOINT", "setpoint": 75.0}`}</div>
+
+                    <div className="p-1.5 rounded bg-black/80 border border-gray-800 text-gray-300 flex items-center justify-between gap-1">
+                      <div>
+                        <span className="text-cyan-300 font-bold block">Target Setpoint:</span>
+                        <div className="text-gray-400">{`{"cmd": "SET_SETPOINT", "setpoint": 75.0}`}</div>
+                      </div>
+                      <button
+                        onClick={() => handleCopyCommand('{"cmd": "SET_SETPOINT", "setpoint": 75.0}')}
+                        className="px-1.5 py-0.5 rounded bg-gray-800 hover:bg-gray-700 text-gray-300 text-[8.5px] font-mono transition-colors flex-shrink-0"
+                      >
+                        {copiedCmd === '{"cmd": "SET_SETPOINT", "setpoint": 75.0}' ? 'COPIED' : 'COPY'}
+                      </button>
                     </div>
-                    <div className="p-1.5 rounded bg-black/80 border border-gray-800 text-gray-300">
-                      <span className="text-emerald-300 font-bold">Reset Fault Interlock:</span>
-                      <div className="text-gray-400">{`{"cmd": "RESET_FAULT"}`}</div>
+
+                    <div className="p-1.5 rounded bg-black/80 border border-gray-800 text-gray-300 flex items-center justify-between gap-1">
+                      <div>
+                        <span className="text-emerald-300 font-bold block">Reset Fault Interlock:</span>
+                        <div className="text-gray-400">{`{"cmd": "RESET_FAULT"}`}</div>
+                      </div>
+                      <button
+                        onClick={() => handleCopyCommand('{"cmd": "RESET_FAULT"}')}
+                        className="px-1.5 py-0.5 rounded bg-gray-800 hover:bg-gray-700 text-gray-300 text-[8.5px] font-mono transition-colors flex-shrink-0"
+                      >
+                        {copiedCmd === '{"cmd": "RESET_FAULT"}' ? 'COPIED' : 'COPY'}
+                      </button>
                     </div>
-                    <div className="p-1.5 rounded bg-black/80 border border-gray-800 text-gray-300">
-                      <span className="text-red-300 font-bold">Fault Injection:</span>
-                      <div className="text-gray-400">{`{"cmd": "INJECT_FAULT", "type": "OVERTEMP" | "DISCONNECT"}`}</div>
+
+                    <div className="p-1.5 rounded bg-black/80 border border-gray-800 text-gray-300 flex items-center justify-between gap-1">
+                      <div>
+                        <span className="text-red-300 font-bold block">Fault Injection:</span>
+                        <div className="text-gray-400">{`{"cmd": "INJECT_FAULT", "type": "OVERTEMP"}`}</div>
+                      </div>
+                      <button
+                        onClick={() => handleCopyCommand('{"cmd": "INJECT_FAULT", "type": "OVERTEMP"}')}
+                        className="px-1.5 py-0.5 rounded bg-gray-800 hover:bg-gray-700 text-gray-300 text-[8.5px] font-mono transition-colors flex-shrink-0"
+                      >
+                        {copiedCmd === '{"cmd": "INJECT_FAULT", "type": "OVERTEMP"}' ? 'COPIED' : 'COPY'}
+                      </button>
                     </div>
                   </div>
                 </div>
