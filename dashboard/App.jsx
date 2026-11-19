@@ -278,7 +278,7 @@ export default function App() {
             {/* 2. Main Two-Column Viewport with 100% Flat Viewport Lock */}
             <main className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-12 gap-2 overflow-y-auto lg:overflow-hidden">
               {/* LEFT COLUMN: Hero 3D Chassis / 2D Schematic + Real-Time Oscilloscope */}
-              <div className="lg:col-span-7 flex flex-col min-h-0 gap-1.5 overflow-hidden justify-between">
+              <div className="lg:col-span-7 flex flex-col min-h-0 gap-1.5 overflow-hidden">
                 {/* Hero Visual: 3D EV Skateboard or 2D CAD with 1-Click Toggle */}
                 {visualMode === '3D' ? (
                   <ThermalSchematic3D
